@@ -1,3 +1,0 @@
-# Docs
-
-Specs, notes, runbooks.

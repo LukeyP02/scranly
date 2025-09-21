@@ -1,3 +1,0 @@
-# Infra
-
-Terraform/Cloud config.

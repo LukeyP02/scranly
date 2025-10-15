@@ -1,20 +1,15 @@
-# Xcode
+# Xcode / iOS
 DerivedData/
 build/
-*.xcuserstate
-*.xcscmblueprint
 xcuserdata/
-*.xccheckout
-*.moved-aside
+*.xcuserstate
 
-# Swift Package Manager
+# SwiftPM
 .swiftpm/
 .build/
 
 # CocoaPods
 Pods/
-*.xcworkspace
-!default.xcworkspace
 Podfile.lock
 
 # Carthage
@@ -22,16 +17,11 @@ Carthage/Build/
 
 # Fastlane
 fastlane/report.xml
-fastlane/Preview.html
 fastlane/screenshots/**/*.png
-fastlane/test_output
 
-# Archives & logs
-*.xcarchive
-*.ipa
-*.dSYM.zip
+# OS junk
+.DS_Store
 *.log
 
-# Misc
-.DS_Store
-*.orig
+# Local data / SQLite
+api/data/*.db

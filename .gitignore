@@ -1,12 +1,37 @@
+# Xcode
 DerivedData/
 build/
-*.xcuserdatad
-*.xcworkspace/xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+*.xccheckout
+*.moved-aside
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# CocoaPods
+Pods/
+*.xcworkspace
+!default.xcworkspace
+Podfile.lock
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Archives & logs
+*.xcarchive
+*.ipa
+*.dSYM.zip
+*.log
+
+# Misc
 .DS_Store
-*.db-shm
-*.db-wal
-api/
-docs/
-infra/
-ios
-ios
+*.orig

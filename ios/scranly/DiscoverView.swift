@@ -1,803 +1,257 @@
 import SwiftUI
-import UIKit
-
-// MARK: - Brand
+// One brand color declaration
 fileprivate let brandOrange = Color(red: 0.95, green: 0.40, blue: 0.00)
 
+// Recipe+Stub.swift
 
-// MARK: - Swipe action bar (buttons under title)
-fileprivate struct SwipeActionBar: View {
-    let canUndo: Bool
-    let canSwipe: Bool
-    var onUndo: () -> Void
-    var onNope: () -> Void
-    var onLike: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Button(action: onUndo) {
-                Label("Undo", systemImage: "arrow.uturn.backward")
-                    .font(.callout.weight(.heavy))
-            }
-            .buttonStyle(.bordered)
-            .disabled(!canUndo)
-
-            Spacer()
-
-            Button(action: onNope) {
-                Label("Skip", systemImage: "xmark")
-                    .font(.callout.weight(.heavy))
-            }
-            .buttonStyle(.bordered)
-            .tint(.secondary)
-
-            Button(action: onLike) {
-                Label("Like", systemImage: "heart.fill")
-                    .font(.callout.weight(.heavy))
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(brandOrange)
-            .disabled(!canSwipe)
-        }
-        .padding(.horizontal)
-    }
-}
-
-// MARK: - Discover
-struct DiscoverView: View {
-    @StateObject private var vm = DiscoverViewModel()
-    
-    // keep Mode NESTED in DiscoverView, because other views reference DiscoverView.Mode
-    enum Mode: String, CaseIterable, Identifiable {
-        case forYou = "For You", swipe = "Swipe"
-        var id: String { rawValue }
-    }
-    
-    @State private var mode: Mode = .forYou
-    @State private var search: String = ""
-    @State private var programmaticSwipe: SwipeDirection? = nil
-    
-    
-    // de-dup API results by title (optional; remove if API guarantees uniqueness)
-    private var uniqueRecipes: [Recipe] {
-        var seen = Set<String>()
-        return vm.recipes.filter { seen.insert($0.title).inserted }
-    }
-    
-    
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(.systemBackground).ignoresSafeArea()
-                
-                if mode == .forYou {
-                    ForYouFeed(all: vm.recipes, liked: vm.liked, search: $search)
-                        .safeAreaInset(edge: .top) {
-                            DiscoverHeader(
-                                mode: $mode,
-                                showSearch: true,
-                                search: $search,
-                                catalogue: vm.recipes
-                            )
-                        }
-                    
-                } else {
-                    // --- SWIPE MODE ---
-                    VStack(spacing: 14) {
-                        // Buttons live under the screen title (header)
-                        SwipeActionBar(
-                            canUndo: vm.canUndo,
-                            canSwipe: !vm.swipeDeck.isEmpty,
-                            onUndo: vm.undoLast,
-                            onNope: { programmaticSwipe = .nope },
-                            onLike: { programmaticSwipe = .like }
-                        )
-                        .padding(.top, 8)
-                        
-                        Text("Swipe to Discover 🍴")
-                            .font(.system(size: 22, weight: .black, design: .rounded))
-                            .foregroundColor(brandOrange)
-                        
-                        Text("Based on your favourites & taste")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .padding(.bottom, 4)
-                        
-                        if vm.swipeDeck.isEmpty {
-                            EmptySwipeState { Task { await vm.resetDeck() } }
-                                .padding(.top, 24)
-                                .padding(.horizontal)
-                        } else {
-                            SwipeDeck(
-                                items: vm.swipeDeck,
-                                programmaticSwipe: $programmaticSwipe,
-                                onSwipe: { item, likedRight in
-                                    if let idx = vm.swipeDeck.firstIndex(of: item) {
-                                        withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                                            vm.swipeDeck.remove(at: idx)
-                                        }
-                                    }
-                                    vm.registerSwipe(item, likedRight: likedRight)
-                                }
-                            )
-                            .frame(height: 500)
-                            .padding(.horizontal)
-                            .padding(.top, 6)
-                            .transition(.scale.combined(with: .opacity))
-                        }
-                        
-                        // Shortlist
-                        if !vm.liked.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Shortlist").font(.headline).padding(.horizontal)
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 10) {
-                                        ForEach(vm.liked, id: \.id) { r in
-                                            HStack(spacing: 8) {
-                                                Text("🍽️")
-                                                Text(r.title).lineLimit(1)
-                                            }
-                                            .font(.caption.weight(.semibold))
-                                            .padding(.vertical, 6)
-                                            .padding(.horizontal, 10)
-                                            .background(Color(.systemBackground))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                    .stroke(.black, lineWidth: 2)
-                                            )
-                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                        }
-                                    }
-                                    .padding(.horizontal)
-                                }
-                            }
-                        }
-                        
-                        Spacer(minLength: 10)
-                    }
-                    .padding(.top, 12)
-                    .safeAreaInset(edge: .top) {
-                        DiscoverHeader(mode: $mode, showSearch: false, search: .constant(""), catalogue: vm.recipes)
-                    }
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .overlay {
-            if vm.isLoading {
-                ZStack {
-                    Color.black.opacity(0.1).ignoresSafeArea()
-                    ProgressView("Loading…")
-                        .padding()
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-            }
-        }
-        .alert(
-            "Error",
-            isPresented: Binding(
-                get: { vm.errorMessage != nil },
-                set: { if !$0 { vm.errorMessage = nil } }
-            )
-        ) {
-            Button("OK") { vm.errorMessage = nil }
-        } message: {
-            Text(vm.errorMessage ?? "")
-        }
-        .task { await vm.load() }
-        .environment(\.font, .system(size: 15, weight: .regular, design: .rounded))
-    }
-}
-
-// MARK: - Header (title + picker + optional search)
-fileprivate struct DiscoverHeader: View {
-    @Binding var mode: DiscoverView.Mode
-    var showSearch: Bool
-    @Binding var search: String
-    var catalogue: [Recipe]
+// MARK: - Liked grid cell (2-up)
+fileprivate struct LikedGridItem: View {
+    let recipe: Recipe
+    let added: Bool
+    var onAddToNext: () -> Void
+    var onRemove: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Discover")
-                    .font(.system(size: 34, weight: .black, design: .rounded))
-                    .kerning(0.5)
-                Spacer()
+        VStack(spacing: 8) {
+            ZStack(alignment: .topTrailing) {
+                // Tap → detail
                 NavigationLink {
-                    MealCatalogueView(recipes: catalogue)
+                    RecipeDetailView(meal: recipe)
                 } label: {
-                    Label("Catalogue", systemImage: "square.grid.2x2")
-                        .font(.callout.weight(.heavy))
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
-                        .background(Color(.systemBackground))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(Color.black, lineWidth: 2)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .foregroundStyle(.black)
-                }
-            }
-            .padding(.horizontal)
+                    ZStack(alignment: .bottomLeading) {
+                        thumb(recipe)
+                            .frame(height: 160)
+                            .clipped()
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            Picker("", selection: $mode) {
-                ForEach(DiscoverView.Mode.allCases) { m in
-                    Text(m.rawValue).tag(m)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
+                        LinearGradient(colors: [.clear, .black.opacity(0.45)],
+                                       startPoint: .center, endPoint: .bottom)
+                            .frame(height: 90)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            if showSearch {
-                SearchBar(text: $search)
-                    .padding(.horizontal)
-            }
-        }
-        .padding(.top, 18)
-        .padding(.bottom, 10)
-        .background(Color(.systemBackground))
-        .overlay(Divider(), alignment: .bottom)
-        .shadow(color: .black.opacity(0.05), radius: 6, y: 4)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-}
-
-
-fileprivate struct ForYouFeed: View {
-    let all: [Recipe]
-    let liked: [Recipe]
-    @Binding var search: String
-
-
-    private var hour: Int { Calendar.current.component(.hour, from: Date()) }
-
-    private var filteredForSearch: [Recipe] {
-        guard !search.isEmpty else { return all }
-        let q = search.lowercased()
-        return all.filter { $0.title.lowercased().contains(q) || $0.desc.lowercased().contains(q) }
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 22) {
-
-                if !search.isEmpty {
-                    SectionHeader(title: "Results", subtitle: "Matching “\(search)”")
-                    MealCatalogueView(recipes: filteredForSearch)
-                        .frame(minHeight: 300)
-                    Spacer(minLength: 20)
-
-                } else {
-                    // Taste dials
-                   
-
-                    // Compute feed
-                    let profile = TasteProfile(
-                        likedTitles: Set(liked.map { $0.title }),
-                        preferQuick: false,
-                        preferHighProtein: false
+                        Text(recipe.title)
+                            .font(.system(size: 15.5, weight: .bold, design: .serif))
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+                            .shadow(radius: 2)
+                            .padding(10)
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.black.opacity(0.12), lineWidth: 1)
                     )
+                }
+                .buttonStyle(.plain)
 
-                    let topPicks = TasteEngine.rank(all: all, profile: profile, hour: hour).prefix(10)
-                    let similar = TasteEngine.similar(to: liked, from: all, max: 10)
-                    let quickTonight = TasteEngine.quick(all: all, limit: 8)
-                    let proteinPicks = TasteEngine.highProtein(all: all, limit: 8)
+                // Subtle X (smaller, material, lighter stroke)
+                Button(action: onRemove) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.black.opacity(0.10), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
+                }
+                .buttonStyle(.plain)
+                .padding(6)
+            }
 
-                    if !topPicks.isEmpty {
-                        SectionHeader(title: "Top picks for you", subtitle: "Freshly mixed, right now")
-                        HorizontalCarousel(data: Array(topPicks), size: CGSize(width: 320, height: 280), showForYouBadge: true)
-                            .padding(.bottom, 6)
-                    }
-
-                    if !similar.isEmpty {
-                        SectionHeader(title: "Because you liked…", subtitle: liked.first?.title ?? "your recent likes")
-                        HorizontalCarousel(data: similar, size: CGSize(width: 200, height: 250))
-                            .padding(.bottom, 6)
-                    }
-
-                    SectionHeader(title: hour >= 16 ? "Quick tonight" : "Fast & fuss-free", subtitle: "<15 minutes")
-                    HorizontalCarousel(data: quickTonight, size: CGSize(width: 200, height: 250))
-                        .padding(.bottom, 6)
-
-                    SectionHeader(title: "High-protein for you", subtitle: "Powered-up plates")
-                    HorizontalCarousel(data: proteinPicks, size: CGSize(width: 200, height: 250))
-                        .padding(.bottom, 12)
+            // Add to next plan (brand button)
+            Button(action: onAddToNext) {
+                HStack(spacing: 8) {
+                    Image(systemName: added ? "checkmark.circle" : "calendar.badge.plus")
+                    Text(added ? "Added" : "Add to next plan")
                 }
             }
-            .padding(.bottom, 28)
+            .buttonStyle(MiniBorderButtonStyle())
+            .disabled(added)
+        }
+    }
+
+    // Local asset first, then URL, then fallback
+    @ViewBuilder private func thumb(_ r: Recipe) -> some View {
+        if let asset = localAssetName(for: r.title), UIImage(named: asset) != nil {
+            Image(asset).resizable().scaledToFill()
+        } else if let url = r.imageURL {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let img): img.resizable().scaledToFill()
+                case .empty: Color.gray.opacity(0.08)
+                case .failure: fallbackEmoji
+                @unknown default: fallbackEmoji
+                }
+            }
+        } else {
+            fallbackEmoji
+        }
+    }
+
+    private var fallbackEmoji: some View {
+        ZStack {
+            brandOrange.opacity(0.15)
+            Text("🍽️").font(.system(size: 64))
         }
     }
 }
-
-fileprivate struct TasteProfile {
-    let likedTitles: Set<String>
-    let preferQuick: Bool
-    let preferHighProtein: Bool
+// Map recipe titles → asset names in Assets.xcassets
+fileprivate func localAssetName(for title: String) -> String? {
+    let t = title.lowercased()
+    if t.contains("katsu") || t.contains("kastu") { return "katsu" }
+    if t.contains("caesar") || t.contains("caeser") { return "caeser" }
+    if t.contains("oats") || t.contains("overnight") { return "oats" }
+    return nil
 }
 
-fileprivate enum TasteEngine {
-    // Simple keyword map to cluster “similar” dishes
-    private static let tags: [String:Set<String>] = [
-        "Katsu Chicken Curry": ["chicken","curry","japanese","rice","crispy"],
-        "Salmon & Rice": ["salmon","fish","rice","quick"],
-        "Veggie Stir Fry": ["veg","stirfry","noodles","quick"],
-        "Chicken Caesar Wrap": ["chicken","wrap","salad","lunch","quick"],
-        "Poke Bowl": ["bowl","rice","salmon","fresh","quick"],
-        "Tomato Mozzarella Panini": ["panini","mozzarella","tomato","basil","veg","lunch","quick"],
-        "Eggs on Toast": ["eggs","breakfast","quick"],
-        "Greek Yogurt & Fruit": ["yogurt","fruit","breakfast","quick","veg"],
-        "Overnight Oats": ["oats","breakfast","veg","quick"],
-        "Chicken Tikka Bowl": ["chicken","bowl","spiced","rice","protein"],
-        "Turkey Bolognese": ["turkey","pasta","bolognese","protein"],
-        "Tofu Power Salad": ["tofu","salad","veg","protein","quick"]
+// MARK: - Liked screen
+struct LikedRecipesView: View {
+    @State private var query = ""
+
+    // Only titles that map to your assets (katsu / caesar / oats)
+    @State private var liked: [Recipe] = [
+        .stub(title: "Katsu Chicken Curry", time: 30, kcal: 680),
+        .stub(title: "Veggie Katsu", time: 22, kcal: 520),
+        .stub(title: "Chicken Caesar Wrap", time: 12, kcal: 520),
+        .stub(title: "Classic Caesar Salad Wrap", time: 14, kcal: 480),
+        .stub(title: "Overnight Oats", time: 5, kcal: 380),
+        .stub(title: "Peanut Butter Oats", time: 6, kcal: 420)
     ]
 
-    static func tags(for r: Recipe) -> Set<String> {
-        tags[r.title] ?? Set(r.title.lowercased().split{ !$0.isLetter }.map(String.init))
+    @State private var addedToNext: Set<String> = []
+
+    private var filtered: [Recipe] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return liked }
+        return liked.filter { $0.title.localizedCaseInsensitiveContains(q) }
     }
 
-    static func similar(to liked: [Recipe], from pool: [Recipe], max: Int) -> [Recipe] {
-        guard let anchor = liked.last else { return [] }
-        let anchorTags = tags(for: anchor)
-        return pool
-            .filter { $0.title != anchor.title }
-            .sorted { jaccard(tags(for: $0), anchorTags) > jaccard(tags(for: $1), anchorTags) }
-            .prefix(max)
-            .map { $0 }
+    private var columns: [GridItem] {
+        [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
     }
-
-    static func quick(all: [Recipe], limit: Int) -> [Recipe] {
-        Array(all.sorted { $0.timeMinutes < $1.timeMinutes }.prefix(limit))
-    }
-
-    static func highProtein(all: [Recipe], limit: Int) -> [Recipe] {
-        Array(all.sorted { $0.protein > $1.protein }.prefix(limit))
-    }
-
-    static func rank(all: [Recipe], profile: TasteProfile, hour: Int) -> [Recipe] {
-        all.sorted { score($0, profile, hour) > score($1, profile, hour) }
-    }
-
-    private static func score(_ r: Recipe, _ p: TasteProfile, _ hour: Int) -> Double {
-        var s: Double = 0
-
-        // If you liked similar dishes
-        let likedBoost = p.likedTitles
-            .map { jaccard(tags(for: r), tags(forTitle: $0)) }
-            .max() ?? 0
-        s += likedBoost * 2.0
-
-        // Quick preference
-        if p.preferQuick { s += (r.timeMinutes <= 15 ? 1.2 : 0) }
-
-        // High protein preference
-        if p.preferHighProtein { s += Double(r.protein) / 50.0 }
-
-        // Time-of-day bias
-        if hour < 11 { s += (r.timeMinutes <= 15 ? 0.6 : 0); if tags(for:r).contains("breakfast") { s += 0.6 } }
-        if hour >= 17 { if tags(for:r).contains("curry") || tags(for:r).contains("bowl") { s += 0.4 } }
-
-        // Keep calories reasonable
-        s += (r.calories >= 400 && r.calories <= 700) ? 0.2 : 0
-
-        return s
-    }
-
-    private static func tags(forTitle title: String) -> Set<String> {
-        tags[title] ?? Set(title.lowercased().split{ !$0.isLetter }.map(String.init))
-    }
-
-    private static func jaccard(_ a: Set<String>, _ b: Set<String>) -> Double {
-        let inter = a.intersection(b).count
-        if inter == 0 { return 0 }
-        return Double(inter) / Double(a.union(b).count)
-    }
-}
-
-// MARK: - Section header (minimal)
-fileprivate struct SectionHeader: View {
-    let title: String
-    var subtitle: String? = nil
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Rectangle()
-                .fill(brandOrange)
-                .frame(width: 4, height: 24)
-                .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.title3.weight(.heavy))
-                    .foregroundStyle(.primary)
-
-                if let s = subtitle, !s.isEmpty {
-                    Text(s)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
+        NavigationStack {
+            VStack(spacing: 12) {
+                header
+                searchBar
+                content
             }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
+        }
+    }
 
-            Spacer()
+    // MARK: - Sections
+
+    @ViewBuilder
+    private var header: some View {
+        HStack {
+            Text("Liked")
+                .font(.system(size: 20, weight: .black, design: .rounded))
+                .padding(.vertical, 8)
+                .padding(.horizontal, 14)
+                .background(Color(.systemBackground))
+                .overlay(Capsule().stroke(.black, lineWidth: 2))
+                .clipShape(Capsule())
+            Spacer(minLength: 0)
         }
         .padding(.horizontal)
+        .padding(.top, 8)
     }
-}
-
-// MARK: - Search
-fileprivate struct SearchBar: View {
-    @Binding var text: String
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").font(.subheadline).foregroundStyle(.secondary)
-            TextField("Search recipes, cuisines, ingredients…", text: $text)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-        }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.black.opacity(0.08), lineWidth: 1)
-        )
-    }
-}
-
-// MARK: - Swipe Deck
-fileprivate enum SwipeDirection { case like, nope }
-
-fileprivate struct SwipeDeck: View {
-    var items: [Recipe]
-    @Binding var programmaticSwipe: SwipeDirection?
-    var onSwipe: (Recipe, Bool) -> Void
-
-    private let cardOffsetY: CGFloat = 12
-    private let cardScaleStep: CGFloat = 0.035
-
-    var body: some View {
-        GeometryReader { geo in
-            let width = min(max(geo.size.width - 40, 280), 380)
-            let height = max(width * 1.35, 460)
-
-            ZStack {
-                ForEach(Array(items.enumerated()), id: \.element.id) { (idx, item) in
-                    let isTop = idx == items.count - 1
-                    let positionFromTop = items.count - 1 - idx
-
-                    SwipeCard(
-                        recipe: item,
-                        width: width,
-                        height: height,
-                        isTop: isTop,
-                        programmaticSwipe: $programmaticSwipe,
-                        onRemove: { likedRight in onSwipe(item, likedRight) }
-                    )
-                    .stackStyle(positionFromTop: positionFromTop,
-                                baseOffsetY: cardOffsetY,
-                                scaleStep: cardScaleStep)
-                    .zIndex(Double(idx))
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(height: 580)
-    }
-}
-
-fileprivate struct SwipeCard: View {
-    let recipe: Recipe
-    let width: CGFloat
-    let height: CGFloat
-    let isTop: Bool
-    @Binding var programmaticSwipe: SwipeDirection?
-    var onRemove: (Bool) -> Void
-
-    @State private var offset: CGSize = .zero
-    @State private var isGone: Bool = false
-
-    private let corner: CGFloat = 18
-    private let threshold: CGFloat = 120
-
-    private var likeProgress: CGFloat { max(0, min(1,  offset.width / threshold)) }
-    private var nopeProgress: CGFloat { max(0, min(1, -offset.width / threshold)) }
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.08), radius: 8, y: 6)
-
-            VStack(spacing: 0) {
-                ZStack {
-                    heroImage                               // 👈 use the helper
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
-
-                    LinearGradient(colors: [brandOrange.opacity(0.10), .clear],
-                                   startPoint: .topLeading, endPoint: .center)
-                    LinearGradient(colors: [.clear, .black.opacity(0.35)],
-                                   startPoint: .center, endPoint: .bottom)
-                }
-                .frame(height: height * 0.75)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(recipe.title)
-                        .font(.headline.weight(.heavy))
-                        .foregroundStyle(.black)
-                        .lineLimit(1)
-
-                    Text(recipe.desc)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    HStack(spacing: 8) {
-                        Label("\(recipe.timeMinutes)m", systemImage: "clock")
-                            .font(.caption.weight(.semibold))
-                        Text("·").font(.caption)
-                        Label("\(recipe.calories) kcal", systemImage: "flame.fill")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .foregroundStyle(.secondary)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .background(Color(.systemBackground))
-            }
-            .frame(width: width, height: height)
-            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-        }
-        .frame(width: width, height: height)
-        .offset(x: offset.width, y: offset.height)
-        .rotationEffect(.degrees(Double(offset.width / 14)))
-        .highPriorityGesture(
-            DragGesture()
-                .onChanged { value in
-                    guard isTop else { return }
-                    offset = value.translation
-                }
-                .onEnded { value in
-                    guard isTop else { return }
-                    endDrag(with: value.translation)
-                }
-        )
-        .overlay(alignment: .topLeading) {
-            if likeProgress > 0.6 {
-                Stamp(text: "LIKE").rotationEffect(.degrees(-15)).padding(16)
-            }
-        }
-        .overlay(alignment: .topTrailing) {
-            if nopeProgress > 0.6 {
-                Stamp(text: "NOPE").rotationEffect(.degrees(15)).padding(16)
-            }
-        }
-        .opacity(isGone ? 0.6 : 1)
-        .onChange(of: programmaticSwipe) { dir in
-            guard isTop, let dir else { return }
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
-                isGone = true
-                offset.width = (dir == .like) ? 800 : -800
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                onRemove(dir == .like)
-                offset = .zero
-                isGone = false
-                programmaticSwipe = nil
-            }
-        }
-    }
-
-    // MARK: - Helpers (must be at type scope, not inside body)
 
     @ViewBuilder
-    private var heroImage: some View {
-        // If your model uses URL?: keep as-is.
-        if let url = recipe.imageURL {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let img): img.resizable().scaledToFill()
-                case .empty: Color.gray.opacity(0.08)
-                case .failure: fallbackEmoji
-                @unknown default: fallbackEmoji
-                }
-            }
-        }
-        // If your model uses String? instead, swap to:
-        // else if let s = recipe.imageURL, let url = URL(string: s) { ... }
-        else {
-            fallbackEmoji
+    private var searchBar: some View {
+        HStack { BrandSearchField(text: $query) }
+            .padding(.horizontal)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch (liked.isEmpty, filtered.isEmpty) {
+        case (true, _):
+            emptyLiked
+        case (false, true):
+            emptySearch
+        default:
+            grid
         }
     }
 
-    private var fallbackEmoji: some View {
-        ZStack {
-            brandOrange.opacity(0.15)
-            Text("🍽️").font(.system(size: 96))
+    // MARK: - States
+
+    private var emptyLiked: some View {
+        VStack(spacing: 10) {
+            Text("No liked recipes yet")
+                .font(.system(size: 22, weight: .black, design: .rounded))
+            Text("Tap ♥ on any recipe to save it here.")
+                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                .foregroundStyle(.secondary)
         }
+        .padding(.top, 40)
     }
 
-    private func endDrag(with translation: CGSize) {
-        let like = translation.width > threshold
-        let nope = translation.width < -threshold
-        if like || nope {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                isGone = true
-                offset.width += like ? 600 : -600
-                offset.height += translation.height
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                onRemove(like)
-                offset = .zero
-                isGone = false
-            }
-        } else {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.75, blendDuration: 0.15)) {
-                offset = .zero
-                isGone = false
-            }
+    private var emptySearch: some View {
+        VStack(spacing: 8) {
+            Text("No matches")
+                .font(.system(size: 18, weight: .black, design: .rounded))
+            Text("Try a different search.")
+                .font(.system(size: 12, weight: .heavy, design: .rounded))
+                .foregroundStyle(.secondary)
         }
-    }
-}
-
-fileprivate struct Stamp: View {
-    let text: String
-    var body: some View {
-        Text(text)
-            .font(.system(size: 22, weight: .black, design: .rounded))
-            .padding(.vertical, 6)
-            .padding(.horizontal, 10)
-            .foregroundStyle(.white)
-            .background(brandOrange.opacity(0.9))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-}
-
-fileprivate extension View {
-    func stackStyle(positionFromTop: Int, baseOffsetY: CGFloat, scaleStep: CGFloat) -> some View {
-        let scale = max(0.6, 1 - CGFloat(positionFromTop) * scaleStep)
-        let y = CGFloat(positionFromTop) * baseOffsetY
-        return self
-            .scaleEffect(scale)
-            .offset(y: y)
-    }
-}
-
-// MARK: - Recipe Detail (Plan-style)
-// MARK: - Recipe Detail (Plan-style)
-struct RecipeDetailView: View {
-    let meal: Recipe
-
-    enum Tab: String, CaseIterable, Identifiable {
-        case ingredients = "Ingredients", method = "Method"
-        var id: String { rawValue }
+        .padding(.top, 24)
     }
 
-    @State private var tab: Tab = .ingredients
-    @State private var completedSteps: Set<Int> = []
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-
-                // HERO
-                heroImage
-                    .frame(height: 240)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-                // Title + meta
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(meal.title)
-                        .font(.system(size: 28, weight: .black, design: .rounded))
-                        .kerning(0.5)
-
-                    HStack(spacing: 8) {
-                        RDMetaTag(systemImage: "clock",      text: "\(meal.timeMinutes)m")
-                        RDMetaTag(systemImage: "flame.fill", text: "\(meal.calories) kcal")
-                        RDMetaTag(systemImage: "bolt.fill",  text: "\(meal.protein)g P")
-                    }
-                }
-
-                // Description
-                Text(longDescription)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
-
-                // Segmented tabs
-                Picker("", selection: $tab) {
-                    ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-
-                // Content
-                if tab == .ingredients {
-                    let data = RDIngredients.make(for: meal)
-                    let grouped = RDIngredients.grouped(data)
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(grouped, id: \.0) { (category, idxs) in
-                            RDCategoryHeader(text: category)
-                            VStack(spacing: 0) {
-                                ForEach(idxs, id: \.self) { i in
-                                    RDIngredientRow(item: data[i])
-                                    if i != idxs.last { RDRowSeparator() }
-                                }
+    private var grid: some View {
+        // Be explicit to avoid the overload clash
+        SwiftUI.ScrollView(.vertical, showsIndicators: false) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
+                ForEach(filtered, id: \.title) { r in
+                    LikedGridItem(
+                        recipe: r,
+                        added: addedToNext.contains(r.title),
+                        onAddToNext: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                _ = addedToNext.insert(r.title)   // discard (inserted: Bool, memberAfterInsert: String)
                             }
-                            .padding(.horizontal)
-                            .padding(.bottom, 2)
+                        },
+                        onRemove: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                liked.removeAll { $0.title == r.title }  // already Void
+                                _ = addedToNext.remove(r.title)          // discard Optional<String>
+                            }
                         }
-                    }
-                    .padding(.top, 4)
-
-                } else {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(Array(steps.enumerated()), id: \.offset) { idx, line in
-                            RDMethodStepRow(
-                                index: idx + 1,
-                                text: line,
-                                done: completedSteps.contains(idx),
-                                onToggle: {
-                                    if completedSteps.contains(idx) {
-                                        completedSteps.remove(idx)
-                                    } else {
-                                        completedSteps.insert(idx)
-                                    }
-                                }
-                            )
-                        }
-                    }
-                    .padding(.top, 4)
-                }
-
-                Spacer(minLength: 24)
-            }
-            .padding()
-        }
-        .navigationTitle(meal.title)
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    // MARK: - Helpers
-    @ViewBuilder
-    private var heroImage: some View {
-        if let url = meal.imageURL {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let img): img.resizable().scaledToFill()
-                case .empty: Color.gray.opacity(0.08)
-                case .failure: fallbackEmoji
-                @unknown default: fallbackEmoji
+                    )
                 }
             }
-        } else {
-            fallbackEmoji
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
+            .padding(.bottom, 40)
         }
     }
+}
 
-    private var fallbackEmoji: some View {
-        ZStack {
-            brandOrange.opacity(0.15)
-            Text("🍽️").font(.system(size: 96))
-        }
-    }
 
-    private var longDescription: String {
-        let base = meal.desc.isEmpty ? "A bright, weeknight-friendly dish." : meal.desc
-        return "\(base) Built from pantry staples with fresh add-ins — easy to tweak for whatever’s in the fridge, and scales well for leftovers."
-    }
 
-    private var steps: [String] {
-        [
-            "Heat pan until hot; prep everything first.",
-            "Sear protein 2–3 min per side. Rest briefly.",
-            "Flash aromatics 30–60s until fragrant.",
-            "Toss veg 2–3 min — keep some bite.",
-            "Sauce, season boldly, plate and serve."
-        ]
+extension Recipe {
+    static func stub(title: String, time: Int, kcal: Int) -> Recipe {
+        Recipe.mock(
+            title: title,
+            desc: "Demo hardcoded recipe",
+            imageURL: nil,          // keeps your 🍽️ fallback in RecipeDetailView
+            timeMinutes: time,
+            calories: kcal,
+            protein: 30,
+            carbs: 55,
+            fat: 15,
+            tags: ["demo"],
+            cuisine: "Japanese",
+            subCuisine: nil,
+            diet: nil,
+            mealType: "dinner",
+            difficulty: "easy",
+            allergens: []
+        )
     }
 }
 
@@ -926,36 +380,6 @@ private enum RDIngredients {
     }
 }
 
-// Row (Shop-like)
-private struct RDIngredientRow: View {
-    @State var item: RDIngredient
-
-    private var qtyText: String {
-        switch item.unit {
-        case .count:        return "\(Int(item.amount))\(RDUnit.count.label)"
-        case .grams:        return "\(Int(item.amount))\(RDUnit.grams.label)"
-        case .milliliters:  return "\(Int(item.amount))\(RDUnit.milliliters.label)"
-        }
-    }
-
-    var body: some View {
-        Toggle(isOn: $item.isChecked) {
-            HStack(spacing: 8) {
-                Text(item.emoji).font(.system(size: 18)).frame(width: 26, height: 26)
-                Text(qtyText).font(.subheadline.monospacedDigit())
-                Text(item.name)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                    .foregroundStyle(item.isChecked ? .secondary : .primary)
-                    .layoutPriority(1)
-                Spacer(minLength: 8)
-            }
-            .contentShape(Rectangle())
-        }
-        .toggleStyle(RDRightCheckToggleStyle())
-    }
-}
-
 private struct RDRightCheckToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 12) {
@@ -1079,97 +503,143 @@ fileprivate struct RDMethodStepRow: View {
     }
 }
 
-// MARK: - Carousel (links to detail)
-fileprivate struct HorizontalCarousel: View {
-    let data: [Recipe]
-    let size: CGSize
-    var showForYouBadge: Bool = false
+fileprivate struct BrandSearchField: View {
+    @Binding var text: String
+    var prompt: String = "Search liked recipes"
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 14) {
-                ForEach(data) { r in
-                    NavigationLink {
-                        RecipeDetailView(meal: r)
-                    } label: {
-                        MealChipCard(recipe: r, size: size, showForYouBadge: showForYouBadge)
-                    }
-                    .buttonStyle(.plain)
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.secondary)
+
+            TextField(prompt, text: $text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled(true)
+                .tint(brandOrange)
+
+            if !text.isEmpty {
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { text = "" }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.secondary)
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
         }
-        .background(Color.clear)
-        .zIndex(1)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(.black, lineWidth: 2)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
-// MARK: - Meal Chip
-fileprivate struct MealChipCard: View {
-    let recipe: Recipe
-    let size: CGSize
-    var showForYouBadge: Bool = false
+struct RecipeDetailView: View {
+    let meal: Recipe
 
-    private let corner: CGFloat = 16
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
-
-            VStack(spacing: 0) {
-                ZStack {
-                    chipImage
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
-
-                    LinearGradient(colors: [brandOrange.opacity(0.10), .clear],
-                                   startPoint: .topLeading, endPoint: .center)
-                    LinearGradient(colors: [.clear, .black.opacity(0.35)],
-                                   startPoint: .center, endPoint: .bottom)
-                }
-                .frame(height: size.height * 0.75)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    if showForYouBadge {
-                        Text("For you")
-                            .font(.caption.weight(.heavy))
-                            .padding(.vertical, 3)
-                            .padding(.horizontal, 8)
-                            .background(brandOrange.opacity(0.12))
-                            .foregroundStyle(brandOrange)
-                            .clipShape(Capsule())
-                    }
-
-                    Text(recipe.title)
-                        .font(.subheadline.weight(.heavy))
-                        .foregroundStyle(.black)
-                        .lineLimit(1)
-
-                    Text(recipe.desc)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                .padding(10)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .background(Color(.systemBackground))
-            }
-            .frame(width: size.width, height: size.height)
-            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-        }
-        .frame(width: size.width, height: size.height)
-        .compositingGroup()
-        .contentShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+    enum Tab: String, CaseIterable, Identifiable {
+        case ingredients = "Ingredients", method = "Method"
+        var id: String { rawValue }
     }
 
-    // MARK: - Helpers (must be outside `body`)
+    @State private var tab: Tab = .ingredients
+    @State private var completedSteps: Set<Int> = []
 
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+
+                // HERO
+                heroImage
+                    .frame(height: 240)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                // Title + meta
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(meal.title)
+                        .font(.system(size: 28, weight: .black, design: .serif))
+                        .kerning(0.5)
+
+                    HStack(spacing: 8) {
+                        RDMetaTag(systemImage: "clock",      text: "\(meal.timeMinutes)m")
+                        RDMetaTag(systemImage: "flame.fill", text: "\(meal.calories) kcal")
+                        RDMetaTag(systemImage: "bolt.fill",  text: "\(meal.protein)g P")
+                    }
+                }
+
+                // Description
+                Text(longDescription)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+
+                // Segmented tabs
+                Picker("", selection: $tab) {
+                    ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+
+                // Content
+                if tab == .ingredients {
+                    let data = RDIngredients.make(for: meal)
+                    let grouped = RDIngredients.grouped(data)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(grouped, id: \.0) { (category, idxs) in
+                            RDCategoryHeader(text: category)
+                            VStack(spacing: 0) {
+                                ForEach(idxs, id: \.self) { i in
+                                    RDIngredientRow(item: data[i])
+                                    if i != idxs.last { RDRowSeparator() }
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 2)
+                        }
+                    }
+                    .padding(.top, 4)
+
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(Array(steps.enumerated()), id: \.offset) { idx, line in
+                            RDMethodStepRow(
+                                index: idx + 1,
+                                text: line,
+                                done: completedSteps.contains(idx),
+                                onToggle: {
+                                    if completedSteps.contains(idx) {
+                                        completedSteps.remove(idx)
+                                    } else {
+                                        completedSteps.insert(idx)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+
+                Spacer(minLength: 24)
+            }
+            .padding()
+        }
+        .navigationTitle(meal.title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // MARK: - Helpers
     @ViewBuilder
-    private var chipImage: some View {
-        if let url = recipe.imageURL {
+    private var heroImage: some View {
+        if let asset = localAssetName(for: meal.title), UIImage(named: asset) != nil {
+            Image(asset).resizable().scaledToFill()
+        } else if let url = meal.imageURL {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let img): img.resizable().scaledToFill()
@@ -1186,65 +656,487 @@ fileprivate struct MealChipCard: View {
     private var fallbackEmoji: some View {
         ZStack {
             brandOrange.opacity(0.15)
-            Text("🍽️").font(.system(size: 72))
+            Text("🍽️").font(.system(size: 96))
         }
+    }
+
+    private var longDescription: String {
+        let base = meal.desc.isEmpty ? "A bright, weeknight-friendly dish." : meal.desc
+        return "\(base) Built from pantry staples with fresh add-ins — easy to tweak for whatever’s in the fridge, and scales well for leftovers."
+    }
+
+    private var steps: [String] {
+        [
+            "Heat pan until hot; prep everything first.",
+            "Sear protein 2–3 min per side. Rest briefly.",
+            "Flash aromatics 30–60s until fragrant.",
+            "Toss veg 2–3 min — keep some bite.",
+            "Sauce, season boldly, plate and serve."
+        ]
     }
 }
 
-// MARK: - Catalogue Grid
-fileprivate struct MealCatalogueView: View {
-    let recipes: [Recipe]
-    @State private var query: String = ""
-
-    private var filtered: [Recipe] {
-        guard !query.isEmpty else { return recipes }
-        let q = query.lowercased()
-        return recipes.filter {
-            $0.title.lowercased().contains(q) || $0.desc.lowercased().contains(q)
-        }
+// MARK: - Small shared styles
+struct MiniBorderButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 14, weight: .heavy, design: .rounded))
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .background(Color(.systemBackground))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.black, lineWidth: 2)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
     }
+}
 
-    private let grid = [GridItem(.adaptive(minimum: 160), spacing: 14)]
+// Short, friendly tag line for the overlay pill
+fileprivate func shortTag(for title: String) -> String {
+    let t = title.lowercased()
+    if t.contains("salmon") || t.contains("poke") { return "Protein • flavour • glow" }
+    if t.contains("katsu")                      { return "Crispy • cosy" }
+    if t.contains("pesto") || t.contains("pasta"){ return "Twirls • sauce • comfort" }
+    if t.contains("wrap")                       { return "Handheld • speedy" }
+    if t.contains("stir")                       { return "Fast • veg-heavy" }
+    return "Good food • good plan"
+}
+
+// MARK: - Sticky Header
+fileprivate struct DiscoverStickyHeader: View {
+    var onLikedTap: () -> Void
 
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: grid, spacing: 14) {
-                ForEach(filtered) { r in
-                    NavigationLink {
-                        RecipeDetailView(meal: r)
-                    } label: {
-                        MealChipCard(recipe: r, size: CGSize(width: 170, height: 210))
+        VStack(spacing: 8) {
+            HStack {
+                Text("Discover")
+                    .font(.system(size: 34, weight: .black, design: .rounded))
+                    .kerning(0.5)
+
+                Spacer()
+
+                Button(action: onLikedTap) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "heart.fill")
+                        Text("Liked")
                     }
-                    .buttonStyle(.plain)
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
                 }
+                .buttonStyle(MiniBorderButtonStyle())
             }
             .padding(.horizontal)
-            .padding(.top, 8)
-            .padding(.bottom, 20)
         }
-        .navigationTitle("Catalogue")
-        .searchable(text: $query, prompt: "Search meals")
+        .padding(.top, 4)
+        .padding(.bottom, 12)
+        .background(Color(.systemBackground))
+        .overlay(Divider(), alignment: .bottom)
+        .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
     }
 }
 
-// MARK: - Empty swipe state
-fileprivate struct EmptySwipeState: View {
-    var reset: () -> Void
+// MARK: - Daily Bites
+struct DailyBite: Identifiable, Hashable {
+    let id = UUID()
+    let title: String
+    let subtitle: String
+    let imageName: String
+    let kcal: Int
+    let timeMin: Int
+}
+
+fileprivate struct DailyBitesCard: View {
+    private let meals: [DailyBite] = [
+        .init(title: "Katsu Curry",       subtitle: "Crispy + cosy",     imageName: "katsu", kcal: 680, timeMin: 30),
+        .init(title: "Katsu Rice Bowl",   subtitle: "Weeknight quick",   imageName: "katsu", kcal: 540, timeMin: 18),
+        .init(title: "Veggie Katsu",      subtitle: "Light & crunchy",   imageName: "katsu", kcal: 460, timeMin: 22),
+    ]
+
+    var onBin: (DailyBite) -> Void = { _ in }
+    var onCook: (DailyBite) -> Void = { _ in }
+
+    @State private var index: Int = 0
+    private let corner: CGFloat = 16
+
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.largeTitle)
-                .foregroundStyle(brandOrange)
-            Text("You’re all caught up").font(.headline)
-            Text("Reset the deck to keep discovering more.")
-                .font(.subheadline).foregroundStyle(.secondary)
-            Button("Reset deck", action: reset)
-                .buttonStyle(.borderedProminent)
-                .tint(brandOrange)
+        VStack(alignment: .leading, spacing: 10) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Daily Bites")
+                        .font(.system(size: 24, weight: .black, design: .rounded))
+                    Text("Three quick picks just for today.")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("\(index + 1)/\(meals.count)")
+                    .font(.caption.weight(.bold))
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color(.systemBackground).opacity(0.9))
+                            .overlay(Capsule().stroke(.black.opacity(0.15), lineWidth: 1))
+                    )
+            }
+            .padding(.horizontal)
+
+            // Card container
+            VStack(spacing: 0) {
+                // Each page is a NavigationLink to RecipeDetailView
+                TabView(selection: $index) {
+                    ForEach(meals.indices, id: \.self) { i in
+                        let m = meals[i]
+                        NavigationLink {
+                            RecipeDetailView(meal: .stub(title: m.title, time: m.timeMin, kcal: m.kcal))
+                        } label: {
+                            ZStack(alignment: .bottomLeading) {
+                                Image(m.imageName)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(height: 220)
+                                    .clipped()
+
+                                LinearGradient(
+                                    colors: [.clear, .black.opacity(0.38)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                                .frame(height: 120)
+                                .frame(maxHeight: .infinity, alignment: .bottom)
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(m.title)
+                                        .font(.system(size: 18, weight: .bold, design: .serif))
+                                        .foregroundStyle(.white)
+                                        .shadow(radius: 3)
+                                        .lineLimit(2)
+
+                                    Text(shortTag(for: m.title))
+                                        .font(.system(size: 12.5, weight: .semibold, design: .serif))
+                                        .padding(.vertical, 4)
+                                        .padding(.horizontal, 10)
+                                        .background(
+                                            Capsule()
+                                                .fill(.black.opacity(0.28))
+                                                .overlay(Capsule().stroke(.white.opacity(0.35), lineWidth: 1))
+                                        )
+                                        .foregroundStyle(.white)
+                                }
+                                .padding(12)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .tag(i)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(height: 220)
+
+                // bin / cook row
+                HStack(spacing: 0) {
+                    Button { onBin(meals[index]) } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "trash")
+                            Text("Bin").font(.subheadline.weight(.heavy))
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .background(Color(.systemGray6))
+                    .overlay(Rectangle().frame(width: 1).foregroundStyle(Color.black.opacity(0.08)), alignment: .trailing)
+
+                    Button { onCook(meals[index]) } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "fork.knife")
+                            Text("Cook").font(.subheadline.weight(.heavy))
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .background(brandOrange)
+                }
+            }
+            .background(Color(.systemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: corner, style: .continuous).stroke(.black, lineWidth: 2))
+            .padding(.horizontal)
         }
-        .padding()
+        .accessibilityElement(children: .contain)
+    }
+}
+
+// MARK: - Recipe card
+fileprivate struct RecipeTileCard: View {
+    let imageName: String
+    let title: String
+    let timeMin: Int
+    let kcal: Int
+    var onCook: () -> Void = {}
+    var onRemove: () -> Void = {}
+
+    private let corner: CGFloat = 16
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            Image(imageName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 220, height: 180)
+                .clipped()
+
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.55)],
+                startPoint: .center,
+                endPoint: .bottom
+            )
+            .frame(width: 220, height: 180)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.system(size: 16.5, weight: .bold, design: .serif))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .shadow(radius: 2)
+
+                Text(shortTag(for: title))
+                    .font(.system(size: 12, weight: .semibold, design: .serif))
+                    .padding(.vertical, 3.5)
+                    .padding(.horizontal, 9)
+                    .background(
+                        Capsule()
+                            .fill(.black.opacity(0.28))
+                            .overlay(Capsule().stroke(.white.opacity(0.35), lineWidth: 1))
+                    )
+                    .foregroundStyle(.white)
+            }
+            .padding(10)
+        }
+        .frame(width: 220, height: 180)
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .stroke(Color.black.opacity(0.10), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 10, y: 6)
+        .overlay(alignment: .topTrailing) {
+            HStack(spacing: 8) {
+                Button(action: onRemove) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 32)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.black.opacity(0.12), lineWidth: 1))
+                }
+                Button(action: onCook) {
+                    Image(systemName: "fork.knife.circle.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 32, height: 32)
+                        .background(brandOrange)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
+                }
+            }
+            .padding(10)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title).")
+        .accessibilityHint("Use Cook to start or Trash to dismiss.")
+    }
+}
+
+// MARK: - Horizontal section
+fileprivate struct SectionView: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Rectangle()
+                    .fill(brandOrange)
+                    .frame(width: 4, height: 20)
+                    .cornerRadius(2)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    // Wrap each card in a NavigationLink so tapping the chip/card navigates
+                    ForEach(0..<8) { _ in
+                        let t = "Katsu Curry with Rice"
+                        let img = "katsu"
+                        let time = 30
+                        let kcal = 680
+                        NavigationLink {
+                            RecipeDetailView(meal: .stub(title: t, time: time, kcal: kcal))
+                        } label: {
+                            RecipeTileCard(
+                                imageName: img,
+                                title: t,
+                                timeMin: time,
+                                kcal: kcal
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+}
+
+// === Add this chip (matches Discover look) ===
+fileprivate struct LikedGridCard: View {
+    let title: String
+    let imageName: String
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = max(140, w * 0.72) // keep proportionate
+
+            ZStack(alignment: .bottomLeading) {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: w, height: h)
+                    .clipped()
+
+                LinearGradient(colors: [.clear, .black.opacity(0.45)],
+                               startPoint: .center, endPoint: .bottom)
+                    .frame(width: w, height: h)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .bold, design: .serif))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .shadow(radius: 2)
+
+                    Text(shortTag(for: title))
+                        .font(.system(size: 12, weight: .semibold, design: .serif))
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 9)
+                        .background(
+                            Capsule()
+                                .fill(.black.opacity(0.28))
+                                .overlay(Capsule().stroke(.white.opacity(0.35), lineWidth: 1))
+                        )
+                        .foregroundStyle(.white)
+                }
+                .padding(10)
+            }
+            .frame(width: w, height: h)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.black, lineWidth: 2))
+            .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
+        }
+        .frame(height: 165) // good default; auto-adjusts with screen
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title)")
+    }
+}
+
+// MARK: - Main Discover
+struct DiscoverView: View {
+    @State private var showLiked = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                DiscoverStickyHeader(
+                    onLikedTap: { showLiked.toggle() }
+                )
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 20) {
+
+                        // Daily Bites now navigates on tap
+                        DailyBitesCard()
+
+                        // Rails
+                        SectionView(
+                            title: "Top picks for you",
+                            subtitle: "Freshly mixed, right now"
+                        )
+
+                        SectionView(
+                            title: "Fast & fuss-free",
+                            subtitle: "<15 minutes"
+                        )
+
+                        SectionView(
+                            title: "New this week",
+                            subtitle: "Hot out the kitchen 🔥"
+                        )
+
+                        SectionView(
+                            title: "Because you liked Thai Curry",
+                            subtitle: "Recommended just for you"
+                        )
+
+                        Spacer(minLength: 60)
+                    }
+                    .padding(.top, 8)
+                }
+            }
+            .sheet(isPresented: $showLiked) {
+                LikedRecipesView()
+            }
+            .toolbar(.hidden, for: .navigationBar)        }
+    }
+}
+
+// MARK: - RDIngredientRow (left unchanged)
+private struct RDIngredientRow: View {
+    @State var item: RDIngredient
+
+    private var qtyText: String {
+        switch item.unit {
+        case .count:        return "\(Int(item.amount))\(RDUnit.count.label)"
+        case .grams:        return "\(Int(item.amount))\(RDUnit.grams.label)"
+        case .milliliters:  return "\(Int(item.amount))\(RDUnit.milliliters.label)"
+        }
+    }
+
+    var body: some View {
+        Toggle(isOn: $item.isChecked) {
+            HStack(spacing: 8) {
+                Text(item.emoji).font(.system(size: 18)).frame(width: 26, height: 26)
+                Text(qtyText).font(.subheadline.monospacedDigit())
+                Text(item.name)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .foregroundStyle(item.isChecked ? .secondary : .primary)
+                    .layoutPriority(1)
+                Spacer(minLength: 8)
+            }
+            .contentShape(Rectangle())
+        }
+        .toggleStyle(RDRightCheckToggleStyle())
     }
 }
 
 // MARK: - Preview
-#Preview { DiscoverView() }
+#Preview {
+    DiscoverView()
+}

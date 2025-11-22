@@ -10,6 +10,8 @@
 		5A179B252E89619300033A8C /* Recipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A179B242E89619300033A8C /* Recipe.swift */; };
 		5A179B2D2E8976D400033A8C /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A179B272E896AF400033A8C /* APIClient.swift */; };
 		5A179B712E9039AF00033A8C /* TrackViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A179B702E9039A600033A8C /* TrackViewModel.swift */; };
+		5A472D952EBAA0CA003AF290 /* WeeklyRoundupFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A472D942EBAA0CA003AF290 /* WeeklyRoundupFlowView.swift */; };
+		5A984A082ECA4FB70023D5CF /* WeeklyRoundupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A984A072ECA4FB70023D5CF /* WeeklyRoundupView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,6 +38,8 @@
 		5A179B242E89619300033A8C /* Recipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recipe.swift; sourceTree = "<group>"; };
 		5A179B272E896AF400033A8C /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		5A179B702E9039A600033A8C /* TrackViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackViewModel.swift; sourceTree = "<group>"; };
+		5A472D942EBAA0CA003AF290 /* WeeklyRoundupFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyRoundupFlowView.swift; sourceTree = "<group>"; };
+		5A984A072ECA4FB70023D5CF /* WeeklyRoundupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyRoundupView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -84,6 +88,8 @@
 		5A179A3B2E80845200033A8C = {
 			isa = PBXGroup;
 			children = (
+				5A984A072ECA4FB70023D5CF /* WeeklyRoundupView.swift */,
+				5A472D942EBAA0CA003AF290 /* WeeklyRoundupFlowView.swift */,
 				5A179B262E896AD100033A8C /* Networking */,
 				5A179B232E89618000033A8C /* Models */,
 				5A179A462E80845200033A8C /* scranly */,
@@ -264,7 +270,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A472D952EBAA0CA003AF290 /* WeeklyRoundupFlowView.swift in Sources */,
 				5A179B252E89619300033A8C /* Recipe.swift in Sources */,
+				5A984A082ECA4FB70023D5CF /* WeeklyRoundupView.swift in Sources */,
 				5A179B712E9039AF00033A8C /* TrackViewModel.swift in Sources */,
 				5A179B2D2E8976D400033A8C /* APIClient.swift in Sources */,
 			);
@@ -427,6 +435,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"scranly/Preview Content\"";
+				DEVELOPMENT_TEAM = KCM7AQMT3Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -455,6 +464,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"scranly/Preview Content\"";
+				DEVELOPMENT_TEAM = KCM7AQMT3Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

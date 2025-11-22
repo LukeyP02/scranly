@@ -52,3 +52,44 @@ struct Recipe: Identifiable, Decodable, Hashable {
         case mealType       = "meal_type"
     }
 }
+
+extension Recipe {
+    // Factory for demo / preview data
+    static func mock(
+        id: String = UUID().uuidString,
+        title: String,
+        desc: String = "",
+        imageURL: URL? = nil,
+        timeMinutes: Int = 10,
+        calories: Int,
+        protein: Int,
+        carbs: Int,
+        fat: Int,
+        tags: [String] = [],
+        cuisine: String? = nil,
+        subCuisine: String? = nil,
+        diet: String? = nil,
+        mealType: String? = nil,
+        difficulty: String? = nil,
+        allergens: [String] = []
+    ) -> Recipe {
+        return Recipe(
+            id: id,
+            title: title,
+            desc: desc,
+            imageUrlString: imageURL?.absoluteString,
+            timeMinutes: timeMinutes,
+            calories: calories,
+            proteinG: protein,
+            carbsG: carbs,
+            fatG: fat,
+            tags: tags,
+            cuisine: cuisine,
+            subCuisine: subCuisine,
+            diet: diet,
+            mealType: mealType,
+            difficulty: difficulty,
+            allergens: allergens
+        )
+    }
+}

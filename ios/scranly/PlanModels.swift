@@ -2,25 +2,39 @@ import Foundation
 
 // MARK: - UI models the view actually renders
 
-/// Where a meal sits in the day (used for labels, defaults, emoji).
-enum MealSlot: String, CaseIterable, Identifiable {
-    case breakfast = "Breakfast", lunch = "Lunch", dinner = "Dinner"
-    var id: String { rawValue }
-}
-
 /// Lightweight model consumed by cards/day page (image/title/time etc.).
 /// This stays stable even if the backend shape changes.
 struct PlannedMeal: Identifiable, Hashable {
-    var recipe: Recipe? 
+    var recipe: Recipe?     // you can stub Recipe? as nil in demo
     let id = UUID()
 
     var title: String
-    var time: String            // "HH:mm"
+    var time: String        // "HH:mm"
     var kcal: Int
-    var slot: MealSlot
+    var slot: MealSlot      // e.g. .dinner
     var emoji: String
-    var imageURL: URL?          // from Recipe.imageURL
+    var imageURL: URL?
 }
+
+
+
+struct DayPlan: Identifiable, Hashable {
+    var id: Date { date }        // stable identity = actual calendar day
+    let date: Date
+    let meals: [PlannedMeal]
+
+    /// right now we only surface "the" meal (dinner) in the card
+    var primaryMeal: PlannedMeal? {
+        // prefer dinner if there is one, else first meal
+        if let dinner = meals.first(where: { $0.slot == .dinner }) {
+            return dinner
+        }
+        return meals.first
+    }
+}
+
+
+// super lightweight so we can compile without pulling in real Recipe yet
 
 // MARK: - Shared helpers
 
@@ -121,6 +135,8 @@ extension PlanEventDTO {
             case .breakfast: return "🥣"
             case .lunch:     return "🥪"
             case .dinner:    return "🍛"
+                
+            case .snack:     return "🍫"
             }
         }()
 

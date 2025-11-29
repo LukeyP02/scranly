@@ -79,21 +79,9 @@ struct MyScranlyWeeklyRoundupView: View {
             ZStack {
                 Color(.systemBackground).ignoresSafeArea()
 
-                VStack(spacing: 0) {
+                VStack(spacing: 20) {
                     // Sticky header (share removed)
                     InsightsHeaderBar()
-
-                    // Title row
-                    HStack(spacing: 6) {
-                        Text("Scranly")
-                            .font(.system(size: 28, weight: .black, design: .serif))
-                            .foregroundStyle(scranOrange)
-                        Text("weekly roundup")
-                            .font(.system(size: 28, weight: .black, design: .rounded))
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 4)
 
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 12) {
@@ -217,7 +205,7 @@ struct MyScranlyWeeklyRoundupView: View {
                                             .stroke(.black, lineWidth: 2)
                                     )
                             }
-                            .frame(height: 120)
+                            .frame(height: 180)
                         }
                     }
                     .padding(.top, 10)

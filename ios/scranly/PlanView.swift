@@ -1130,85 +1130,81 @@ fileprivate func addDays(_ d: Date, _ n: Int) -> Date {
 fileprivate struct DraftPlanView: View {
     @Environment(\.dismiss) private var dismiss
 
-    // incoming data (title ignored now)
-    let title: String
-    @State var draft: [DraftDay]
+        // incoming data (title ignored now)
+        let title: String
+        @State var draft: [DraftDay]
 
-    // filters
-    let effortRange: ClosedRange<Int>
-    let cuisineBias: String
-    let calorieRange: ClosedRange<Int>
+        // filters
+        let effortRange: ClosedRange<Int>
+        let cuisineBias: String
+        let calorieRange: ClosedRange<Int>
 
-    // callbacks
-    var onAccept: () -> Void
-    var onRedoAll: () -> Void
+        // callbacks
+        var onAccept: () -> Void
+        var onRedoAll: () -> Void
 
-    // overlay for redo-all
-    @State private var isRebuilding = false
-    @State private var progress: Double = 0
-    @State private var stepIndex: Int = 0
-    @State private var slideIndex: Int = 0
-    private let taglines = ["Crafting flavours", "Saving time", "Balancing macros", "Zero faff", "Matching your vibe"]
+        // overlay for redo-all
+        @State private var isRebuilding = false
+        @State private var progress: Double = 0
+        @State private var stepIndex: Int = 0
+        @State private var slideIndex: Int = 0
+        private let taglines = ["Crafting flavours", "Saving time", "Balancing macros", "Zero faff", "Matching your vibe"]
 
-    // MAIN HEADER = tagline
-    @State private var mainTagline: String = DraftPlanView.randomTagline()
-    private static func randomTagline() -> String {
-        ["Crafting flavours","Saving time","Balancing macros","Zero faff","Matching your vibe"].randomElement()!
-    }
+        // MAIN HEADER = tagline
+        @State private var mainTagline: String = DraftPlanView.randomTagline()
+        private static func randomTagline() -> String {
+            ["Crafting flavours","Saving time","Balancing macros","Zero faff","Matching your vibe"].randomElement()!
+        }
 
-    // “Dinner planned in … seconds”
-    @State private var buildSeconds: Double = DraftPlanView.randomBuildSeconds()
-    private var buildSecondsText: String { String(format: "%.1f", buildSeconds) }
-    private static func randomBuildSeconds() -> Double {
-        let v = Double.random(in: 22.5...38.5); return (v * 10).rounded() / 10.0
-    }
+        // “Dinner planned in … seconds”
+        @State private var buildSeconds: Double = DraftPlanView.randomBuildSeconds()
+        private var buildSecondsText: String { String(format: "%.1f", buildSeconds) }
+        private static func randomBuildSeconds() -> Double {
+            let v = Double.random(in: 22.5...38.5); return (v * 10).rounded() / 10.0
+        }
 
-    // Week range from the canonical Mon–Fri
-    private var monToFri: [Date] {
-        let start = mondayOfThisWeek()
-        return (0..<5).map { addDays(start, $0) }
-    }
-    private var rangeText: String {
-        let df = DateFormatter(); df.dateFormat = "d MMM"
-        guard let first = monToFri.first, let last = monToFri.last else { return "" }
-        return "\(df.string(from: first)) to \(df.string(from: last))"
-    }
-    private func recipeFor(_ date: Date) -> LibraryRecipe? {
-        let cal = Calendar.current
-        return draft.first(where: { cal.isDate($0.date, inSameDayAs: date) })?.recipe
-    }
+        // Week range from the canonical Mon–Fri
+        private var monToFri: [Date] {
+            let start = mondayOfThisWeek()
+            return (0..<5).map { addDays(start, $0) }
+        }
+        private var rangeText: String {
+            let df = DateFormatter(); df.dateFormat = "d MMM"
+            guard let first = monToFri.first, let last = monToFri.last else { return "" }
+            return "\(df.string(from: first)) to \(df.string(from: last))"
+        }
+        private func recipeFor(_ date: Date) -> LibraryRecipe? {
+            let cal = Calendar.current
+            return draft.first(where: { cal.isDate($0.date, inSameDayAs: date) })?.recipe
+        }
 
-    var body: some View {
-        ZStack {
-            VStack(spacing: 12) {
-                // Header
-                VStack(spacing: 10) {
-                    Text(mainTagline)
-                        .font(.system(size: 28, weight: .black, design: .rounded))
-                        .multilineTextAlignment(.center)
+        var body: some View {
+            ZStack {
+                VStack(spacing: 12) {
+                    // Header
+                    VStack(spacing: 10) {
+                        Text(mainTagline)
+                            .font(.system(size: 28, weight: .black, design: .rounded))
+                            .multilineTextAlignment(.center)
 
-                    HStack(spacing: 6) {
-                        Image(systemName: "timer")
-                        Text("Dinner planned in \(buildSecondsText) seconds")
-                            .font(.system(size: 12.5, weight: .heavy, design: .rounded))
+                        // UPDATED: simple grey text, no chip
+                        HStack(spacing: 6) {
+                            Image(systemName: "timer")
+                                .font(.system(size: 12, weight: .bold))
+                            Text("Dinner planned in \(buildSecondsText) seconds")
+                                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        }
+                        .foregroundStyle(.secondary)
                     }
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 10)
-                    .background(
-                        Capsule()
-                            .fill(Color(.systemGray6))
-                            .overlay(Capsule().stroke(.black.opacity(0.12), lineWidth: 1))
-                    )
-                }
-                .padding(.top, 6)
-
-                Spacer(minLength: 8)
-
-                // Range subheader
-                Text("Your meal plan for \(rangeText)")
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.secondary)
                     .padding(.top, 6)
+
+                    Spacer(minLength: 8)
+
+                    // Range subheader
+                    Text("Your meal plan for \(rangeText)")
+                        .font(.system(size: 16, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 6)
 
                 // 5-day list (always Mon–Fri)
                 ScrollView(showsIndicators: false) {

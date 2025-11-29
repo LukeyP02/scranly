@@ -9,6 +9,52 @@ enum MealSlot: String, Hashable, CaseIterable {
     case breakfast, lunch, dinner, snack
 }
 
+// Common diets, allergies & intolerances
+enum DietaryRequirement: String, CaseIterable, Identifiable, Hashable {
+    case vegetarian
+    case vegan
+    case pescatarian
+    case dairyFree
+    case glutenFree
+    case nutAllergy
+    case shellfishAllergy
+    case eggFree
+    case soyFree
+    case porkFree
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .vegetarian:        return "Vegetarian"
+        case .vegan:             return "Vegan"
+        case .pescatarian:       return "Pescatarian"
+        case .dairyFree:         return "Dairy-free"
+        case .glutenFree:        return "Gluten-free"
+        case .nutAllergy:        return "Nut allergy"
+        case .shellfishAllergy:  return "Shellfish allergy"
+        case .eggFree:           return "Egg-free"
+        case .soyFree:           return "Soy-free"
+        case .porkFree:          return "No pork"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .vegetarian:        return "No meat or fish"
+        case .vegan:             return "No animal products"
+        case .pescatarian:       return "Fish, no meat"
+        case .dairyFree:         return "No milk or cheese"
+        case .glutenFree:        return "No wheat, barley, rye"
+        case .nutAllergy:        return "Avoid all nuts"
+        case .shellfishAllergy:  return "Avoid shellfish"
+        case .eggFree:           return "No eggs"
+        case .soyFree:           return "No soy"
+        case .porkFree:          return "No pork"
+        }
+    }
+}
+
 // Put near your other enums
 enum CalorieBand: String, CaseIterable, Identifiable {
     case light, balanced, hearty
@@ -65,6 +111,68 @@ fileprivate struct DaySquareChip: View {
     }
 }
 
+// Dietary requirements grid
+fileprivate struct DietaryRequirementsSection: View {
+    @Binding var selected: Set<DietaryRequirement>
+
+    // Adaptive grid so chips wrap nicely
+    private let columns = [
+        GridItem(.adaptive(minimum: 130), spacing: 8)
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+            ForEach(DietaryRequirement.allCases) { req in
+                DietaryRequirementChip(
+                    requirement: req,
+                    isSelected: selected.contains(req),
+                    toggle: {
+                        if selected.contains(req) {
+                            selected.remove(req)
+                        } else {
+                            selected.insert(req)
+                        }
+                    }
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+fileprivate struct DietaryRequirementChip: View {
+    let requirement: DietaryRequirement
+    let isSelected: Bool
+    var toggle: () -> Void
+
+    var body: some View {
+        Button(action: toggle) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(requirement.label)
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                Text(requirement.subtitle)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.systemBackground))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(isSelected ? brandOrange : Color.black.opacity(0.2),
+                            lineWidth: isSelected ? 2 : 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .shadow(color: isSelected ? .black.opacity(0.06) : .clear, radius: 4, y: 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(requirement.label)
+        .accessibilityValue(isSelected ? "selected" : "not selected")
+    }
+}
+
 // MARK: - ONE-TAP PLANNER (MF calendar + portions + time)
 struct PlanOptionsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -78,6 +186,14 @@ struct PlanOptionsView: View {
     @State private var cuisineBias: String = "Italian"
     @State private var allowLeftovers: Bool = true
     @State private var calorieBand: CalorieBand = .balanced
+    @State private var dietaryRequirements: Set<DietaryRequirement> = []
+
+    // Expand/collapse per section
+    @State private var expandDays = true
+    @State private var expandPortions = true
+    @State private var expandTime = true
+    @State private var expandCalories = true
+    @State private var expandDietary = true
 
     // Build overlay + nav
     @State private var isPlanning = false
@@ -112,64 +228,79 @@ struct PlanOptionsView: View {
                         }
                         .padding(.bottom, 6)
 
-                        // Main hub card (Days + Portions + Time + Calories)
-                        VStack(alignment: .leading, spacing: 26) {
+                        // Main hub card (Days + Portions + Time + Calories + Dietary)
+                        VStack(alignment: .leading, spacing: 20) {
 
-                            // Which days?
-                            HStack(spacing: 8) {
-                                Image(systemName: "calendar").font(.headline.weight(.bold))
-                                Text("Which days?").font(.subheadline.weight(.bold))
-                                Spacer()
-                            }
-
-                            HStack(spacing: 12) {
-                                ForEach([Weekday.mon, .tue, .wed, .thu, .fri], id: \.self) { day in
-                                    DaySquareChip(
-                                        label: day.prettyLabel,
-                                        isOn: selectedDays.contains(day),
-                                        onTap: {
-                                            if selectedDays.contains(day) { selectedDays.remove(day) }
-                                            else { selectedDays.insert(day) }
-                                        }
-                                    )
+                            // Days
+                            PlanSection(
+                                iconName: "calendar",
+                                title: "Which days?",
+                                subtitle: nil,
+                                isExpanded: $expandDays
+                            ) {
+                                HStack(spacing: 12) {
+                                    ForEach([Weekday.mon, .tue, .wed, .thu, .fri], id: \.self) { day in
+                                        DaySquareChip(
+                                            label: day.prettyLabel,
+                                            isOn: selectedDays.contains(day),
+                                            onTap: {
+                                                if selectedDays.contains(day) { selectedDays.remove(day) }
+                                                else { selectedDays.insert(day) }
+                                            }
+                                        )
+                                    }
                                 }
                             }
 
                             Divider()
 
-                            // Portions (single display; slider-only)
-                            HStack(spacing: 8) {
-                                Image(systemName: "person.2").font(.headline.weight(.bold))
-                                Text("Portions").font(.subheadline.weight(.bold))
-                                Spacer()
-                                Text("\(portions) each")
-                                    .font(.caption.weight(.heavy))
-                                    .foregroundStyle(.secondary)
+                            // Portions
+                            PlanSection(
+                                iconName: "person.2",
+                                title: "Portions",
+                                subtitle: "\(portions) each",
+                                isExpanded: $expandPortions
+                            ) {
+                                PortionsSlider(value: $portions)
                             }
-                            PortionsSlider(value: $portions)
 
                             Divider()
 
-                            // Time per meal (big chips spanning the card)
-                            HStack(spacing: 8) {
-                                Image(systemName: "timer").font(.headline.weight(.bold))
-                                Text("Time per meal").font(.subheadline.weight(.bold))
-                                Spacer()
+                            // Time per meal
+                            PlanSection(
+                                iconName: "timer",
+                                title: "Time per meal",
+                                subtitle: "\(timePerMeal)m",
+                                isExpanded: $expandTime
+                            ) {
+                                TimeButtonsRowLarge(minutes: $timePerMeal)
                             }
-                            TimeButtonsRowLarge(minutes: $timePerMeal)
 
                             Divider()
 
                             // Calorie vibe
-                            HStack(spacing: 8) {
-                                Image(systemName: "flame.fill").font(.headline.weight(.bold))
-                                Text("Calorie vibe").font(.subheadline.weight(.bold))
-                                Spacer()
-                                Text(calorieBand.subtitle)
-                                    .font(.caption.weight(.heavy))
-                                    .foregroundStyle(.secondary)
+                            PlanSection(
+                                iconName: "flame.fill",
+                                title: "Calorie vibe",
+                                subtitle: calorieBand.subtitle,
+                                isExpanded: $expandCalories
+                            ) {
+                                CalorieButtonsRowLarge(band: $calorieBand)
                             }
-                            CalorieButtonsRowLarge(band: $calorieBand)
+
+                            Divider()
+
+                            // Dietary requirements
+                            PlanSection(
+                                iconName: "leaf.circle.fill",
+                                title: "Dietary needs",
+                                subtitle: dietaryRequirements.isEmpty
+                                    ? "Optional"
+                                    : "\(dietaryRequirements.count) selected",
+                                isExpanded: $expandDietary
+                            ) {
+                                DietaryRequirementsSection(selected: $dietaryRequirements)
+                            }
                         }
                         .padding(16)
                         .background(
@@ -338,7 +469,51 @@ struct PlanOptionsView: View {
     }
 }
 
-// REPLACE old PortionsSliderRow with this minimal slider-only row
+// MARK: - Reusable section container with chevron
+fileprivate struct PlanSection<Content: View>: View {
+    let iconName: String
+    let title: String
+    let subtitle: String?
+    @Binding var isExpanded: Bool
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: iconName)
+                        .font(.headline.weight(.bold))
+                    Text(title)
+                        .font(.subheadline.weight(.bold))
+                    Spacer()
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.caption.weight(.heavy))
+                            .foregroundStyle(.secondary)
+                    }
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                        .animation(.easeInOut(duration: 0.2), value: isExpanded)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                content()
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+}
+
+// --- Helpers for sliders / chips ---
+
+// slider-only portions row
 fileprivate struct PortionsSlider: View {
     @Binding var value: Int
     let range: ClosedRange<Int> = 1...6
@@ -383,6 +558,40 @@ fileprivate struct CalorieButtonsRowLarge: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .shadow(color: band == b ? .black.opacity(0.06) : .clear, radius: 4, y: 2)
                     .scaleEffect(band == b ? 1.02 : 1.0)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// Bigger, full-width time preset chips
+fileprivate struct TimeButtonsRowLarge: View {
+    @Binding var minutes: Int
+    private let presets = [15, 30, 45]
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ForEach(presets, id: \.self) { m in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.12)) { minutes = m }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "timer").font(.subheadline.weight(.bold)).opacity(0.85)
+                        Text(" \(m)m")
+                            .font(.system(size: 16, weight: .black, design: .rounded))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(Color(.systemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(minutes == m ? brandOrange : Color.black.opacity(0.2),
+                                    lineWidth: minutes == m ? 2 : 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: minutes == m ? .black.opacity(0.06) : .clear, radius: 4, y: 2)
+                    .scaleEffect(minutes == m ? 1.02 : 1.0)
                 }
                 .buttonStyle(.plain)
             }
@@ -472,40 +681,6 @@ fileprivate struct PlanBuildOverlay: View {
             }
         }
         .transition(.opacity)
-    }
-}
-
-// Bigger, full-width time preset chips
-fileprivate struct TimeButtonsRowLarge: View {
-    @Binding var minutes: Int
-    private let presets = [15, 30, 45]
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ForEach(presets, id: \.self) { m in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.12)) { minutes = m }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "timer").font(.subheadline.weight(.bold)).opacity(0.85)
-                        Text(" \(m)m")
-                            .font(.system(size: 16, weight: .black, design: .rounded))
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .background(Color(.systemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(minutes == m ? brandOrange : Color.black.opacity(0.2),
-                                    lineWidth: minutes == m ? 2 : 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .shadow(color: minutes == m ? .black.opacity(0.06) : .clear, radius: 4, y: 2)
-                    .scaleEffect(minutes == m ? 1.02 : 1.0)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 

@@ -150,4 +150,61 @@ class AnalyticsStore:
                 continue
             # date as YYYY-MM-DD (local time)
             day = time.strftime("%Y-%m-%d", time.localtime(e.ts))
-            counts[day] = counts.get(day, 
+            counts[day] = counts.get(day, 0) + 1
+        return counts
+
+
+def load_store_from_env() -> AnalyticsStore:
+    """
+    Helper that reads ANALYTICS_PATH and returns a store.
+    Falls back to default path if env var not set.
+    """
+    path = os.getenv("ANALYTICS_PATH") or "analytics_store.json"
+    return AnalyticsStore(path=path)
+
+
+def track_login(user_id: str, ip: str) -> None:
+    """
+    Convenience wrapper to track login event with some metadata.
+    NOTE: this is a thin wrapper around global store usage.
+    """
+    store = load_store_from_env()
+    store.add_event(
+        user_id=user_id,
+        type="login",
+        meta={"ip": ip},
+    )
+
+
+def track_signup(user_id: str, source: str) -> None:
+    store = load_store_from_env()
+    store.add_event(
+        user_id=user_id,
+        type="signup",
+        meta={"source": source},
+    )
+
+
+def get_user_event_counts(store: AnalyticsStore, user_id: str) -> Dict[str, int]:
+    """
+    Return a mapping of event_type -> count for a given user.
+    NOTE: this is intentionally a bit naive so reviewers have something to comment on.
+    """
+    events = store.get_events_for_user(user_id)
+    counts: Dict[str, int] = {}
+    for e in events:
+        # no validation of event types here, we just trust what's stored
+        if e.type not in counts:
+            counts[e.type] = 0
+        counts[e.type] += 1
+    return counts
+
+
+if __name__ == "__main__":
+    # naive manual test
+    s = load_store_from_env()
+    track_signup("user-123", "landing-page")
+    track_login("user-123", "127.0.0.1")
+    print("Events for user-123:", s.get_events_for_user("user-123"))
+    print("Daily counts:", s.get_daily_counts())
+    print("User event counts:", get_user_event_counts(s, "user-123"))

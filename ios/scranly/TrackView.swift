@@ -42,6 +42,7 @@ private struct ScranlyNoteChip: View {
         .shadow(color: .black.opacity(0.06), radius: 6, y: 5)
     }
 }
+
 struct MyScranlyWeeklyRoundupView: View {
     // Demo data (same shape as before)
     struct MealReview: Identifiable, Equatable {
@@ -79,10 +80,8 @@ struct MyScranlyWeeklyRoundupView: View {
                 Color(.systemBackground).ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // Sticky header
-                    InsightsHeaderBar(scranOrange: scranOrange) {
-                        // Share tapped
-                    }
+                    // Sticky header (share removed)
+                    InsightsHeaderBar()
 
                     // Title row
                     HStack(spacing: 6) {
@@ -98,9 +97,6 @@ struct MyScranlyWeeklyRoundupView: View {
 
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 12) {
-                            // FACT FILE (same structure as “Your Scranly wins”)
-                            
-
                             ScranlyNoteChip(
                                 text: "Your week, decoded. See the wins"
                             )
@@ -114,13 +110,9 @@ struct MyScranlyWeeklyRoundupView: View {
                                 avgProteinG: avgProteinPerMeal,
                                 estSavedGBP: estSavedTotalGBP,
                                 topCuisine: topCuisineThisWeek,
-                                imageNames: ["oats", "katsu", "caeser"].shuffled() // NEW
+                                imageNames: ["oats", "katsu", "caeser"].shuffled()
                             )
                             .padding(.horizontal)
-                            
-                            
-
-                           
                         }
                         .padding(.top, 6)
                     }
@@ -162,11 +154,8 @@ struct MyScranlyWeeklyRoundupView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Header (no share button)
     private struct InsightsHeaderBar: View {
-        let scranOrange: Color
-        var onShare: () -> Void
-
         var body: some View {
             VStack(spacing: 8) {
                 HStack {
@@ -175,12 +164,6 @@ struct MyScranlyWeeklyRoundupView: View {
                         .kerning(0.5)
 
                     Spacer()
-
-                    Button(action: onShare) {
-                        Label("Share", systemImage: "square.and.arrow.up")
-                            .font(.system(size: 14, weight: .heavy, design: .rounded))
-                    }
-                    .buttonStyle(MiniBorderButtonStyle())
                 }
                 .padding(.horizontal)
             }
@@ -200,7 +183,7 @@ struct MyScranlyWeeklyRoundupView: View {
         let avgProteinG: Int
         let estSavedGBP: Double
         let topCuisine: String
-        let imageNames: [String] // NEW
+        let imageNames: [String]
 
         var body: some View {
             VStack(spacing: 0) {
@@ -216,7 +199,6 @@ struct MyScranlyWeeklyRoundupView: View {
                 OrangeDivider(accent: scranOrange)
                 FactRow(icon: "globe", title: "Most-eaten cuisine", value: topCuisine)
 
-                // Triptych INSIDE the chip
                 if !imageNames.isEmpty {
                     OrangeDivider(accent: scranOrange)
                     HStack(spacing: 8) {
@@ -296,6 +278,7 @@ struct MyScranlyWeeklyRoundupView: View {
             }
         }
     }
+
     private struct MiddleThirdTile: View {
         let imageName: String
         var zoom: CGFloat = 2.2

@@ -12,38 +12,65 @@ fileprivate struct LikedGridItem: View {
     var onRemove: () -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 0) {
             ZStack(alignment: .topTrailing) {
-                // Tap → detail
-                NavigationLink {
-                    RecipeDetailView(meal: recipe)
-                } label: {
-                    ZStack(alignment: .bottomLeading) {
-                        thumb(recipe)
-                            .frame(height: 160)
-                            .clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                // Whole card (image + footer) in one rounded container
+                VStack(spacing: 0) {
+                    // Tap image area → detail
+                    NavigationLink {
+                        RecipeDetailView(meal: recipe)
+                    } label: {
+                        ZStack(alignment: .bottomLeading) {
+                            thumb(recipe)
+                                .frame(height: 160)
+                                .clipped()
 
-                        LinearGradient(colors: [.clear, .black.opacity(0.45)],
-                                       startPoint: .center, endPoint: .bottom)
-                            .frame(height: 90)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            LinearGradient(colors: [.clear, .black.opacity(0.45)],
+                                           startPoint: .center,
+                                           endPoint: .bottom)
+                                .frame(height: 90)
 
-                        Text(recipe.title)
-                            .font(.system(size: 15.5, weight: .bold, design: .serif))
-                            .foregroundStyle(.white)
-                            .lineLimit(2)
-                            .shadow(radius: 2)
-                            .padding(10)
+                            Text(recipe.title)
+                                .font(.system(size: 15.5, weight: .bold, design: .serif))
+                                .foregroundStyle(.white)
+                                .lineLimit(2)
+                                .shadow(radius: 2)
+                                .padding(10)
+                        }
                     }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.black.opacity(0.12), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
+                    .buttonStyle(.plain)
 
-                // Subtle X (smaller, material, lighter stroke)
+                    // Seamless footer row – feels part of the same card
+                    Button(action: onAddToNext) {
+                        HStack(spacing: 8) {
+                            Image(systemName: added ? "checkmark.circle.fill" : "calendar.badge.plus")
+                            Text(added ? "Added to next plan" : "Add to next plan")
+                        }
+                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 10)
+                        .background(
+                            (added ? brandOrange.opacity(0.12) : Color(.secondarySystemBackground))
+                                .overlay(
+                                    Rectangle()
+                                        .fill(Color.black.opacity(0.06))
+                                        .frame(height: 0.5),
+                                    alignment: .top
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.black.opacity(0.12), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.06), radius: 4, y: 2)
+
+                // Subtle X in top-right
                 Button(action: onRemove) {
                     Image(systemName: "xmark")
                         .font(.system(size: 11, weight: .bold))
@@ -57,16 +84,6 @@ fileprivate struct LikedGridItem: View {
                 .buttonStyle(.plain)
                 .padding(6)
             }
-
-            // Add to next plan (brand button)
-            Button(action: onAddToNext) {
-                HStack(spacing: 8) {
-                    Image(systemName: added ? "checkmark.circle" : "calendar.badge.plus")
-                    Text(added ? "Added" : "Add to next plan")
-                }
-            }
-            .buttonStyle(MiniBorderButtonStyle())
-            .disabled(added)
         }
     }
 
@@ -132,10 +149,22 @@ struct LikedRecipesView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 12) {
-                header
-                searchBar
-                content
+            ZStack {
+                VStack(spacing: 12) {
+                    header
+                    content
+                }
+            }
+            // Search bar “docked” at the bottom
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 0) {
+                    Divider()
+                    searchBar
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .padding(.bottom, 10)
+                }
+                .background(Color(.systemBackground).ignoresSafeArea())
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
@@ -148,22 +177,18 @@ struct LikedRecipesView: View {
     private var header: some View {
         HStack {
             Text("Liked")
-                .font(.system(size: 20, weight: .black, design: .rounded))
-                .padding(.vertical, 8)
-                .padding(.horizontal, 14)
-                .background(Color(.systemBackground))
-                .overlay(Capsule().stroke(.black, lineWidth: 2))
-                .clipShape(Capsule())
+                .font(.system(size: 28, weight: .black, design: .rounded))
             Spacer(minLength: 0)
         }
         .padding(.horizontal)
-        .padding(.top, 8)
+        .padding(.top, 20)
     }
 
     @ViewBuilder
     private var searchBar: some View {
-        HStack { BrandSearchField(text: $query) }
-            .padding(.horizontal)
+        HStack {
+            BrandSearchField(text: $query)
+        }
     }
 
     @ViewBuilder
@@ -813,17 +838,6 @@ fileprivate struct DailyBitesCard: View {
                                         .foregroundStyle(.white)
                                         .shadow(radius: 3)
                                         .lineLimit(2)
-
-                                    Text(shortTag(for: m.title))
-                                        .font(.system(size: 12.5, weight: .semibold, design: .serif))
-                                        .padding(.vertical, 4)
-                                        .padding(.horizontal, 10)
-                                        .background(
-                                            Capsule()
-                                                .fill(.black.opacity(0.28))
-                                                .overlay(Capsule().stroke(.white.opacity(0.35), lineWidth: 1))
-                                        )
-                                        .foregroundStyle(.white)
                                 }
                                 .padding(12)
                             }
@@ -901,17 +915,6 @@ fileprivate struct RecipeTileCard: View {
                     .foregroundStyle(.white)
                     .lineLimit(2)
                     .shadow(radius: 2)
-
-                Text(shortTag(for: title))
-                    .font(.system(size: 12, weight: .semibold, design: .serif))
-                    .padding(.vertical, 3.5)
-                    .padding(.horizontal, 9)
-                    .background(
-                        Capsule()
-                            .fill(.black.opacity(0.28))
-                            .overlay(Capsule().stroke(.white.opacity(0.35), lineWidth: 1))
-                    )
-                    .foregroundStyle(.white)
             }
             .padding(10)
         }
@@ -1031,17 +1034,6 @@ fileprivate struct LikedGridCard: View {
                         .foregroundStyle(.white)
                         .lineLimit(2)
                         .shadow(radius: 2)
-
-                    Text(shortTag(for: title))
-                        .font(.system(size: 12, weight: .semibold, design: .serif))
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 9)
-                        .background(
-                            Capsule()
-                                .fill(.black.opacity(0.28))
-                                .overlay(Capsule().stroke(.white.opacity(0.35), lineWidth: 1))
-                        )
-                        .foregroundStyle(.white)
                 }
                 .padding(10)
             }

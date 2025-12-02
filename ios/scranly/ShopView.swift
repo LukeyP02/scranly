@@ -1,5 +1,4 @@
 import SwiftUI
-import Foundation
 import UIKit
 
 // MARK: - Brand
@@ -10,6 +9,31 @@ private enum BrandFont {
     static let display   = Font.system(size: 26, weight: .semibold, design: .serif)
     static let section   = Font.system(size: 22, weight: .semibold, design: .serif)
     static let quote     = Font.system(size: 20, weight: .regular,  design: .serif).italic()
+}
+
+// MARK: - Range for the shopping horizon
+enum ShopRange: String, CaseIterable, Identifiable {
+    case today
+    case next3Days
+    case thisWeek
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .today:      return "Today"
+        case .next3Days:  return "Next 3 days"
+        case .thisWeek:   return "This week"
+        }
+    }
+
+    var listTitle: String {
+        switch self {
+        case .today:      return "Today’s list"
+        case .next3Days:  return "Next 3 days"
+        case .thisWeek:   return "This week’s list"
+        }
+    }
 }
 
 // MARK: - Units (no pricing)
@@ -89,62 +113,13 @@ private func groupedCategoryIndices(items: [SRItem]) -> [(String,[Int])] {
 }
 
 // MARK: - UI bits
-private struct ShoppingFactCard: View {
-    let text: String
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Header: scranly (orange/serif) + fact (secondary)
-            HStack(spacing: 8) {
-                Image(systemName: "cart.fill")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(brandOrange)
-
-                HStack(spacing: 6) {
-                    Text("Scranly")
-                        .font(.system(size: 13, weight: .black, design: .serif))
-                        .foregroundStyle(brandOrange)
-                   
-                }
-            }
-
-            Text(text)
-                .font(BrandFont.display)
-                .lineSpacing(4)
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(brandOrange.opacity(0.08))
-                // subtle top highlight to help the “lifted” feel
-                .overlay(
-                    LinearGradient(colors: [Color.white.opacity(0.45), .clear],
-                                   startPoint: .top, endPoint: .center)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                )
-        )
-        // raised: two stacked shadows for a soft elevation
-        .shadow(color: .black.opacity(0.10), radius: 18, y: 14)
-        .shadow(color: .black.opacity(0.04), radius: 4,  y: 2)
-        .padding(.horizontal)
-        .padding(.top, 2)
-    }
-}
-private let shoppingFacts: [String] = [
-    "Lists save brains — science says so 🧠📝",
-    "Planning ahead cuts food waste by up to 30%.",
-    "Shop once, eat well all week.",
-    "Impulse buys? We don’t know her.",
-    "Every planned meal = less food in the bin.",
-    "A good list turns chaos into calm 🛒"
-]
-
-/// Sticky header: page title + remaining + share
+/// Sticky header: page title + remaining + horizon selector
 fileprivate struct ShopStickyHeader: View {
     let remaining: Int
     let total: Int
-    var onShare: () -> Void
+    var selectedRange: ShopRange
+    var onRangeChange: (ShopRange) -> Void
 
     var body: some View {
         VStack(spacing: 8) {
@@ -158,21 +133,52 @@ fileprivate struct ShopStickyHeader: View {
                 Text("\(remaining) of \(total) remaining")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .padding(.trailing, 8)
-
-                Button(action: onShare) {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                        .font(.system(size: 14, weight: .heavy, design: .rounded))
-                }
-                .buttonStyle(MiniBorderButtonStyle())
             }
             .padding(.horizontal)
+
+            // Horizon selector: Today / Next 3 days / This week
+            HStack(spacing: 8) {
+                ForEach(ShopRange.allCases) { range in
+                    Button {
+                        onRangeChange(range)
+                    } label: {
+                        Text(range.label)
+                            .font(.caption.weight(.heavy))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(
+                                        range == selectedRange
+                                        ? brandOrange.opacity(0.14)
+                                        : Color(.systemBackground)
+                                    )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(
+                                        range == selectedRange
+                                        ? brandOrange
+                                        : Color.black.opacity(0.15),
+                                        lineWidth: range == selectedRange ? 1.5 : 1
+                                    )
+                            )
+                            .foregroundStyle(
+                                range == selectedRange
+                                ? brandOrange
+                                : Color.primary
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 4)
         }
-        .padding(.top, 4)      // match PlanTopBar
-        .padding(.bottom, 12)  // match PlanTopBar
+        .padding(.top, 4)
         .background(Color(.systemBackground))
-        .overlay(Divider(), alignment: .bottom)
-        .shadow(color: .black.opacity(0.05), radius: 8, y: 4) // match PlanTopBar
+        .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
     }
 }
 
@@ -274,133 +280,240 @@ private struct RowSeparator: View {
     }
 }
 
-// Simple UIActivityViewController wrapper for sharing text
-private struct ActivityView: UIViewControllerRepresentable {
-    let text: String
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: [text], applicationActivities: nil)
+// MARK: - Ask Scranly bottom sheet
+
+fileprivate struct AskScranlyShopSheet: View {
+    var onClose: () -> Void
+
+    @State private var message: String = ""
+    private let prompts = [
+        "Make this list cheaper",
+        "Swap to veggie options",
+        "Focus on cupboard staples",
+        "Trim this to essentials"
+    ]
+
+    var body: some View {
+        VStack {
+            Spacer()
+
+            VStack(spacing: 12) {
+                // grab handle
+                Capsule()
+                    .fill(Color(.systemGray3))
+                    .frame(width: 40, height: 4)
+                    .padding(.top, 8)
+
+                HStack {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(brandOrange)
+                        Text("Ask Scranly about your shop")
+                            .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    }
+                    Spacer()
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .heavy))
+                            .padding(6)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal)
+
+                // Quick prompts
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(prompts, id: \.self) { prompt in
+                            Button {
+                                message = prompt
+                                // hook this into real chat later
+                            } label: {
+                                Text(prompt)
+                                    .font(.caption.weight(.heavy))
+                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 10)
+                                    .background(Color(.secondarySystemBackground))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 999, style: .continuous)
+                                            .stroke(Color.black.opacity(0.15), lineWidth: 1)
+                                    )
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+
+                // Fake chat area (placeholder)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Chat")
+                        .font(.caption.weight(.heavy))
+                        .foregroundStyle(.secondary)
+
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(.secondarySystemBackground))
+                        .frame(height: 120)
+                        .overlay(
+                            Text("Scranly’s responses will appear here once wired up.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(10),
+                            alignment: .topLeading
+                        )
+                }
+                .padding(.horizontal)
+
+                // Input
+                HStack(spacing: 8) {
+                    TextField("Ask Scranly about this list…", text: $message)
+                        .textFieldStyle(.roundedBorder)
+
+                    Button {
+                        // send message to backend later
+                        message = ""
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title2)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .opacity(message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.4 : 1.0)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 12)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .black.opacity(0.15), radius: 20, y: -4)
+            )
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+        .ignoresSafeArea(edges: .bottom)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-// MARK: - MAIN VIEW (hardcoded, no API, no prices, add-item commented)
+// MARK: - MAIN VIEW
 struct ShopView: View {
+    @State private var selectedRange: ShopRange = .thisWeek
     @State private var items: [SRItem] = SRSamples.items
-    // @State private var showAdd = false   // ⬅️ out of scope now
-    @State private var showShare = false
+
+    @State private var showAskScranly = false
 
     private var totalCount: Int { items.count }
     private var remainingCount: Int { items.filter { !$0.isChecked }.count }
     private var grouped: [(String,[Int])] { groupedCategoryIndices(items: items) }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 12) {
+        ZStack {
+            NavigationStack {
+                ScrollView {
+                    VStack(spacing: 12) {
 
-                    // Friendly fact card (serif)
-                    ShoppingFactCard(text: shoppingFacts.randomElement() ?? "Plan once, relax all week.")
+                        LoudSectionTitle(text: selectedRange.listTitle)
 
-                    // Section title (serif)
-                    LoudSectionTitle(text: "This week’s list")
+                        if items.isEmpty {
+                            VStack(spacing: 14) {
+                                Image(systemName: "cart")
+                                    .font(.system(size: 48, weight: .bold))
+                                    .foregroundColor(brandOrange)
+                                    .padding(.bottom, 2)
 
-                    // Body “Add item” button — OUT OF SCOPE
-                    /*
-                    HStack {
-                        Spacer()
-                        Button {
-                            showAdd = true
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "plus")
-                                Text("Add item")
-                                    .font(.subheadline.weight(.bold))
+                                Text("Your basket is empty.")
+                                    .font(BrandFont.section)
+                                    .foregroundStyle(.primary)
+
+                                Text("Add a plan for this horizon to generate your shopping list.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 24)
                             }
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 10)
-                            .background(Color(.systemBackground))
+                            .frame(maxWidth: .infinity, minHeight: 220)
+                            .frame(maxHeight: .infinity, alignment: .center)
+                            .padding(.top, 12)
+
+                        } else {
+                            ForEach(Array(grouped.enumerated()), id: \.offset) { _, section in
+                                CategoryHeader(text: section.0)
+                                VStack(spacing: 0) {
+                                    ForEach(section.1, id: \.self) { i in
+                                        PlainItemRow(item: $items[i])
+                                        if i != section.1.last { RowSeparator() }
+                                    }
+                                }
+                                .padding(.horizontal)
+                                .padding(.bottom, 2)
+                            }
+                        }
+
+                        Spacer(minLength: 80)
+                    }
+                    .padding(.vertical, 8)
+                }
+                .background(Color(.systemBackground).ignoresSafeArea())
+                .navigationBarTitleDisplayMode(.inline)
+                .safeAreaInset(edge: .top) {
+                    ShopStickyHeader(
+                        remaining: remainingCount,
+                        total: totalCount,
+                        selectedRange: selectedRange,
+                        onRangeChange: { newRange in
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                                selectedRange = newRange
+                            }
+                            // TODO: later update `items` based on range
+                        }
+                    )
+                }
+                .safeAreaInset(edge: .bottom) {
+                    HStack {
+                        Button {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                showAskScranly.toggle()
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text("Ask Scranly")
+                                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 13, weight: .bold))
+                            }
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 14)
+                            .background(brandOrange)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(Color.black, lineWidth: 2)
+                                Capsule()
+                                    .stroke(Color.white, lineWidth: 2)
                             )
+                            .clipShape(Capsule())
+                            .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
+                            .foregroundStyle(.white)
                         }
                         .buttonStyle(.plain)
+
+                        Spacer()
                     }
                     .padding(.horizontal)
-                    */
-
-                    if items.isEmpty {
-                        VStack(spacing: 14) {
-                            Image(systemName: "cart")
-                                .font(.system(size: 48, weight: .bold))
-                                .foregroundColor(brandOrange)
-                                .padding(.bottom, 2)
-
-                            Text("Your basket is empty.")
-                                .font(BrandFont.section)
-                                .foregroundStyle(.primary)
-
-                            Text("Add a plan for this week to generate your shopping list.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 24)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 220)
-                        .frame(maxHeight: .infinity, alignment: .center)
-                        .padding(.top, 12)
-
-                    } else {
-                        ForEach(Array(grouped.enumerated()), id: \.offset) { _, section in
-                            CategoryHeader(text: section.0)
-                            VStack(spacing: 0) {
-                                ForEach(section.1, id: \.self) { i in
-                                    PlainItemRow(item: $items[i])
-                                    if i != section.1.last { RowSeparator() }
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.bottom, 2)
-                        }
-                    }
-
-                    Spacer(minLength: 80)
+                    .padding(.bottom, 8)
+                    .background(.clear)
                 }
-                .padding(.vertical, 8)
             }
-            .background(Color(.systemBackground).ignoresSafeArea())
-            .navigationBarTitleDisplayMode(.inline)
-            .safeAreaInset(edge: .top) {
-                ShopStickyHeader(
-                    remaining: remainingCount,
-                    total: totalCount,
-                    onShare: { showShare = true }
-                )
-            }
-        }
-        // App default remains rounded; serif used selectively above
-        .environment(\.font, .system(size: 15, weight: .regular, design: .rounded))
-        // Add-item sheet — OUT OF SCOPE
-        /*
-        .sheet(isPresented: $showAdd) {
-            AddItemSheet { newItem in items.append(newItem) }
-                .presentationDetents([.medium])
-        }
-        */
-        .sheet(isPresented: $showShare) {
-            let text = shareListText(items: items)
-            ActivityView(text: text).presentationDetents([.medium])
-        }
-    }
+            .environment(\.font, .system(size: 15, weight: .regular, design: .rounded))
 
-    private func shareListText(items: [SRItem]) -> String {
-        var lines: [String] = ["Shopping list", "----------------"]
-        for it in items {
-            let qty = it.needUnit == .count ? "\(Int(it.needAmount))×" :
-                      it.needUnit == .grams ? "\(Int(it.needAmount))g" : "\(Int(it.needAmount))ml"
-            lines.append("• \(qty) \(it.name)")
+            if showAskScranly {
+                AskScranlyShopSheet {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.9)) {
+                        showAskScranly = false
+                    }
+                }
+            }
         }
-        return lines.joined(separator: "\n")
     }
 }
 

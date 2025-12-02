@@ -1,9 +1,9 @@
 import SwiftUI
+
 // MARK: - App Entry
 @main
 struct ScranlyApp: App {
     var body: some Scene {
-        // Restore the app instead of the exporter so you can see the header changes.
         WindowGroup { RootTabView() }
     }
 }
@@ -11,8 +11,6 @@ struct ScranlyApp: App {
 struct RootTabView: View {
     @State private var selected = 0
     @State private var shopBadgeCount = 12
-    @State private var trackNeedsAttention = false
-    @AppStorage("hasPlanThisWeek") private var hasPlanThisWeek = true
 
     init() {
         // Style the stock tab bar a bit
@@ -21,40 +19,34 @@ struct RootTabView: View {
         ap.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
         ap.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.9)
         ap.stackedLayoutAppearance.selected.iconColor = UIColor(Color.scranOrange)
-        ap.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: UIColor(Color.scranOrange)]
+        ap.stackedLayoutAppearance.selected.titleTextAttributes = [
+            .foregroundColor: UIColor(Color.scranOrange)
+        ]
         UITabBar.appearance().standardAppearance = ap
-        if #available(iOS 15.0, *) { UITabBar.appearance().scrollEdgeAppearance = ap }
+        if #available(iOS 15.0, *) {
+            UITabBar.appearance().scrollEdgeAppearance = ap
+        }
         UITabBar.appearance().tintColor = UIColor(Color.scranOrange)
     }
 
     var body: some View {
         TabView(selection: $selected) {
-            DiscoverView()
-                .tabItem { Label("Discover", systemImage: "safari") }
-                .tag(1)
-
-            PlanView()
-                .tabItem { Label("Plan", systemImage: "calendar") }
-                .tag(2)
-
-            // ⬇️ Home in the middle
-            HomeView()
-                .tabItem { Label("Home", systemImage: "house.fill") }
+            // Chef / chat view
+            ChefView()
+                .tabItem { Label("Chef", systemImage: "sparkles") }
                 .tag(0)
 
+            // Weekly plan
+            PlanView()
+                .tabItem { Label("Plan", systemImage: "calendar") }
+                .tag(1)
+
+            // Shopping list
             ShopView()
                 .tabItem { Label("Shop", systemImage: "basket.fill") }
                 .badge(shopBadgeCount > 0 ? shopBadgeCount : 0)
-                .tag(3)
-
-            MyScranlyWeeklyRoundupView()
-                .tabItem {
-                    Label("Insights", systemImage: "newspaper")
-                }
-                .badge(trackNeedsAttention ? "•" : nil)
-                .tag(4)
+                .tag(2)
         }
-        .onAppear { selected = hasPlanThisWeek ? 0 : 2 } // default Home, else Plan
     }
 }
 
@@ -63,6 +55,7 @@ extension Color {
     static let scranOrange = Color(red: 0.95, green: 0.40, blue: 0.00)  // deeper, warmer orange
     static let scranCream  = Color(red: 1.00, green: 0.97, blue: 0.93)  // faint cream for app background
 }
+
 // Bridge so you can use `.foregroundStyle(.scranOrange)` / `.background(.scranCream)`
 extension ShapeStyle where Self == Color {
     static var scranOrange: Color { Color.scranOrange }
@@ -94,16 +87,21 @@ private struct BrandHeaderPill: View {
         .background(
             Capsule(style: .continuous)
                 .fill(
-                    LinearGradient(colors: [top, mid, bot],
-                                   startPoint: .topLeading,
-                                   endPoint: .bottomTrailing)
+                    LinearGradient(
+                        colors: [top, mid, bot],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
                 )
                 // Subtle top sheen for premium feel
                 .overlay(
                     Capsule(style: .continuous)
                         .fill(
-                            LinearGradient(colors: [Color.white.opacity(0.20), .clear],
-                                           startPoint: .top, endPoint: .center)
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.20), .clear],
+                                startPoint: .top,
+                                endPoint: .center
+                            )
                         )
                 )
                 // Crisp edge
@@ -147,11 +145,11 @@ struct ScranlyLogoBar: View {
     }
 }
 
-// MARK: - HOME
+// MARK: - Home helpers still used in Chef/Home style views
 
-// MARK: - Greeting (Hello Alex! / What’s cooking!)
 struct GreetingHello: View {
     let userName: String
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Hello, \(userName)!")
@@ -164,20 +162,22 @@ struct GreetingHello: View {
     }
 }
 
-// MARK: - Next Meal Hero (compact with image)
 struct NextMealHero: View {
     struct Model {
         let title: String
         let meta:  String
         let emoji: String // replace with image/URL when ready
     }
+
     let model: Model
     var onCook: () -> Void
     var onSwap: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Next meal").font(.subheadline).foregroundStyle(.secondary)
+            Text("Next meal")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
 
             ZStack(alignment: .bottomLeading) {
                 RoundedRectangle(cornerRadius: 18)
@@ -185,19 +185,29 @@ struct NextMealHero: View {
                     .frame(height: 160)
                     .overlay(Text(model.emoji).font(.system(size: 60)))
                     .overlay(
-                        LinearGradient(colors: [.clear, .black.opacity(0.35)],
-                                       startPoint: .top, endPoint: .bottom)
+                        LinearGradient(
+                            colors: [.clear, .black.opacity(0.35)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     )
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(model.title).font(.headline).bold().foregroundStyle(.white)
-                    Text(model.meta).font(.caption).foregroundStyle(.white.opacity(0.9))
+                    Text(model.title)
+                        .font(.headline)
+                        .bold()
+                        .foregroundStyle(.white)
+                    Text(model.meta)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.9))
                     HStack(spacing: 8) {
                         Button("Cook now", action: onCook)
-                            .buttonStyle(.borderedProminent).tint(.scranOrange)
+                            .buttonStyle(.borderedProminent)
+                            .tint(.scranOrange)
                         Button("Swap", action: onSwap)
-                            .buttonStyle(.bordered).tint(.white)
+                            .buttonStyle(.bordered)
+                            .tint(.white)
                     }
                     .padding(.top, 4)
                 }
@@ -207,10 +217,15 @@ struct NextMealHero: View {
     }
 }
 
-// MARK: - KPI Grid
+// MARK: - KPI Grid / Highlights reused where needed
+
 struct KPIGrid: View {
     let kpis: [KPI]
-    private let cols = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
+    private let cols = [
+        GridItem(.flexible(), spacing: 14),
+        GridItem(.flexible(), spacing: 14)
+    ]
+
     var body: some View {
         LazyVGrid(columns: cols, spacing: 14) {
             ForEach(kpis) { StatTile(kpi: $0) }
@@ -220,13 +235,20 @@ struct KPIGrid: View {
 
 fileprivate struct StatTile: View {
     let kpi: KPI
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Image(systemName: kpi.icon).foregroundStyle(kpi.tint)
-                Text(kpi.label).font(.caption).foregroundStyle(.secondary)
+                Image(systemName: kpi.icon)
+                    .foregroundStyle(kpi.tint)
+                Text(kpi.label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            Text(kpi.value).font(.title3).bold().foregroundStyle(.orange)
+            Text(kpi.value)
+                .font(.title3)
+                .bold()
+                .foregroundStyle(.orange)
         }
         .padding()
         .frame(maxWidth: .infinity, minHeight: 84)
@@ -236,7 +258,6 @@ fileprivate struct StatTile: View {
     }
 }
 
-// MARK: - Basket Summary Chip (single compact card)
 struct BasketSummaryChip: View {
     var title: String
     var itemsCount: Int
@@ -256,7 +277,8 @@ struct BasketSummaryChip: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Text(title).font(.headline)
+                        Text(title)
+                            .font(.headline)
                         Text("(\(itemsCount) items)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -282,8 +304,6 @@ struct BasketSummaryChip: View {
     }
 }
 
-// MARK: - Detailed Stats Highlights (NEW)
-
 struct StatsHighlight: Identifiable {
     let id = UUID()
     let icon: String
@@ -300,7 +320,6 @@ struct StatsHighlightsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Spicier header
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
@@ -318,7 +337,6 @@ struct StatsHighlightsSection: View {
                 Spacer()
             }
 
-            // 3 stacked chips
             VStack(spacing: 10) {
                 ForEach(highlights) { h in
                     VStack(alignment: .leading, spacing: 8) {
@@ -368,7 +386,6 @@ struct StatsHighlightsSection: View {
     }
 }
 
-// MARK: - Simple models used here
 struct KPI: Identifiable {
     let id = UUID()
     let icon: String

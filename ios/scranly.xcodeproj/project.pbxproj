@@ -32,12 +32,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		5A179A442E80845200033A8C /* scranly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = scranly.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		5A179A542E80845300033A8C /* scranlyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = scranlyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		5A179A5E2E80845300033A8C /* scranlyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = scranlyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A179B242E89619300033A8C /* Recipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recipe.swift; sourceTree = "<group>"; };
 		5A179B272E896AF400033A8C /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		5A179B702E9039A600033A8C /* TrackViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackViewModel.swift; sourceTree = "<group>"; };
+		5A3957392EDF7E0E0033CA22 /* scranly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = scranly.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A39573A2EDF7E0E0033CA22 /* scranlyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = scranlyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A39573B2EDF7E0E0033CA22 /* scranlyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = scranlyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A472D942EBAA0CA003AF290 /* WeeklyRoundupFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyRoundupFlowView.swift; sourceTree = "<group>"; };
 		5A984A072ECA4FB70023D5CF /* WeeklyRoundupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyRoundupView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -95,18 +95,10 @@
 				5A179A462E80845200033A8C /* scranly */,
 				5A179A572E80845300033A8C /* scranlyTests */,
 				5A179A612E80845300033A8C /* scranlyUITests */,
-				5A179A452E80845200033A8C /* Products */,
+				5A3957392EDF7E0E0033CA22 /* scranly.app */,
+				5A39573A2EDF7E0E0033CA22 /* scranlyTests.xctest */,
+				5A39573B2EDF7E0E0033CA22 /* scranlyUITests.xctest */,
 			);
-			sourceTree = "<group>";
-		};
-		5A179A452E80845200033A8C /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				5A179A442E80845200033A8C /* scranly.app */,
-				5A179A542E80845300033A8C /* scranlyTests.xctest */,
-				5A179A5E2E80845300033A8C /* scranlyUITests.xctest */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 		5A179B232E89618000033A8C /* Models */ = {
@@ -148,7 +140,7 @@
 			packageProductDependencies = (
 			);
 			productName = scranly;
-			productReference = 5A179A442E80845200033A8C /* scranly.app */;
+			productReference = 5A3957392EDF7E0E0033CA22 /* scranly.app */;
 			productType = "com.apple.product-type.application";
 		};
 		5A179A532E80845300033A8C /* scranlyTests */ = {
@@ -171,7 +163,7 @@
 			packageProductDependencies = (
 			);
 			productName = scranlyTests;
-			productReference = 5A179A542E80845300033A8C /* scranlyTests.xctest */;
+			productReference = 5A39573A2EDF7E0E0033CA22 /* scranlyTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		5A179A5D2E80845300033A8C /* scranlyUITests */ = {
@@ -194,7 +186,7 @@
 			packageProductDependencies = (
 			);
 			productName = scranlyUITests;
-			productReference = 5A179A5E2E80845300033A8C /* scranlyUITests.xctest */;
+			productReference = 5A39573B2EDF7E0E0033CA22 /* scranlyUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -230,7 +222,7 @@
 			mainGroup = 5A179A3B2E80845200033A8C;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 5A179A452E80845200033A8C /* Products */;
+			productRefGroup = 5A179A3B2E80845200033A8C;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (

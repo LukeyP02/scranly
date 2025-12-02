@@ -118,34 +118,6 @@ extension APIClient {
 
 
 
-// MARK: - Plans API
-// Drop this in the same file as your APIClient, below the existing extension.
-
-
-extension APIClient {
-    func fetchPlanSummaries(userId: String, limit: Int = 20) async throws -> [PlanSummaryDTO] {
-        try await get("v1/plans", query: [
-            .init(name: "user_id", value: userId),
-            .init(name: "limit", value: "\(limit)")
-        ])
-    }
-
-    func fetchCurrentPlan(userId: String, asOf: String? = nil, expand: Bool = true) async throws -> PlanDTO {
-        var items: [URLQueryItem] = [
-            .init(name: "user_id", value: userId),
-            .init(name: "expand",  value: expand ? "true" : "false")
-        ]
-        if let asOf { items.append(.init(name: "as_of", value: asOf)) }
-        return try await get("v1/plans/current", query: items)
-    }
-
-    func fetchPlan(planId: Int, expand: Bool = true) async throws -> PlanDTO {
-        try await get("v1/plans/\(planId)", query: [
-            .init(name: "expand", value: expand ? "true" : "false")
-        ])
-    }
-}
-
 
 
 
@@ -332,10 +304,7 @@ struct BasketSummary: Decodable {
 // Lightweight helpers (reusing your existing API)
 extension APIClient {
 
-    /// GET the current plan with recipes expanded so we can render "next meal".
-    func fetchCurrentPlanExpanded(userId: String, asOf: String? = nil) async throws -> PlanDTO {
-        try await fetchCurrentPlan(userId: userId, asOf: asOf, expand: true)
-    }
+  
 
     /// GET last 7 days of track (you already have this).
     func fetchTrack7(userId: String) async throws -> [TrackEntryDTO] {

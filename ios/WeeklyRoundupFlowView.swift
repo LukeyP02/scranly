@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+
 // Same tag helper used in Discover
 fileprivate func shortTag(for title: String) -> String {
     let t = title.lowercased()
@@ -347,7 +348,6 @@ private struct WeeklyBitesGrid: View {
 }
 
 
-// MARK: - Original single-card swiper, but 12 items
 // MARK: - Original single-card swiper, now with BIN / COOK row
 private struct WeeklyBitesSwipeCard: View {
     let meals: [WeeklyRoundupFlowView.MealReview]
@@ -549,14 +549,15 @@ struct WeeklyRoundupFlowView: View {
     }
 
     // MARK: Flow
-    fileprivate enum Step: Int, CaseIterable { case time, money, choice, rate, bites }
+    fileprivate enum Step: Int, CaseIterable {
+        case time
+        case money
+        case rate
+        case bites
+    }
+
     @State private var step: Step = .time
     @Environment(\.dismiss) private var dismiss
-    @State private var showShare = false
-
-    // choice
-    private let choices = ["Faster nights","Budget week","High protein","Veg-heavy","Comfort","Surprise me"]
-    @State private var selectedChoice: String? = nil
 
     // ratings
     enum ReviewOutcome: String, CaseIterable { case loved = "Loved", meh = "Meh", again = "Cook again" }
@@ -583,30 +584,23 @@ struct WeeklyRoundupFlowView: View {
                     // Sticky header
                     HeaderBar(
                         titleCenter: {
-                            HStack(spacing: 6) {
-                                Text("Scranly")
-                                    .font(.system(size: 24, weight: .black, design: .serif))
-                                    .foregroundStyle(scranOrange)
-                                Text("weekly roundup")
-                                    .font(.system(size: 24, weight: .black, design: .rounded))
-                            }
+                            Text("Scranly")
+                                .font(.system(size: 24, weight: .black, design: .serif))
+                                .foregroundStyle(scranOrange)
                         },
                         left: {
                             Button { dismiss() } label: {
                                 Image(systemName: "chevron.left").font(.headline.weight(.heavy))
-                            }.buttonStyle(.plain)
+                            }
+                            .buttonStyle(.plain)
                         },
                         right: {
-                            Button { showShare = true } label: {
-                                Label("Share", systemImage: "square.and.arrow.up")
-                                    .font(.system(size: 14, weight: .heavy, design: .rounded))
-                            }
-                            .buttonStyle(MiniBorderButtonStyle())
+                            EmptyView()
                         }
                     )
 
                     // Progress chips (word above icon, matches fact-file styling)
-                    StepProgressBar(current: step, accent: scranOrange)
+                    StepProgressBar(current: $step, accent: scranOrange)
                         .padding(.horizontal)
                         .padding(.top, 4)
                         .padding(.bottom, 6)
@@ -615,7 +609,6 @@ struct WeeklyRoundupFlowView: View {
                     TabView(selection: $step) {
                         TimeStep.tag(Step.time)
                         MoneyStep.tag(Step.money)
-                        ChoiceStep.tag(Step.choice)
                         RateStep.tag(Step.rate)
                         BitesStep.tag(Step.bites)
                     }
@@ -672,9 +665,6 @@ struct WeeklyRoundupFlowView: View {
                 .padding(.bottom, 10)
                 .background(Color(.systemBackground).opacity(0.001))
             }
-            .sheet(isPresented: $showShare) {
-                ActivityView(text: shareText()).presentationDetents([.medium])
-            }
             .navigationBarHidden(true)
             .navigationDestination(for: MealReview.self) { meal in
                 MealDetailView(meal: meal)
@@ -688,7 +678,6 @@ struct WeeklyRoundupFlowView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 12) {
                 TitleRow(lead: "Time", trail: weekRangeString, accent: scranOrange)
-                    .padding(.horizontal)
 
                 FactFileCard(cardRadius: cardRadius, accent: scranOrange) {
                     FactRow(icon: "timer", title: "Avg cook", value: "\(avgCookTimeMin)m", accent: scranOrange)
@@ -736,38 +725,9 @@ struct WeeklyRoundupFlowView: View {
         }
     }
 
-    private var ChoiceStep: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 12) {
-                TitleRow(lead: "Your choice", trail: "Tune next week’s plan", accent: scranOrange)
-                    .padding(.horizontal)
-
-                // Fact-file card + inline chip row, both inside the same card
-                FactFileCard(cardRadius: cardRadius, accent: scranOrange) {
-                    FactRow(icon: "target", title: "Focus", value: selectedChoice ?? "Balanced", accent: scranOrange)
-                    OrangeDivider(accent: scranOrange)
-
-                    // Inline chips (wrap) styled like fact file (white + black stroke; selected = accent stroke + soft fill)
-                    WrapChips(data: choices, spacing: 10) { option in
-                        SelectChip(text: option, selected: selectedChoice == option, accent: scranOrange) {
-                            selectedChoice = (selectedChoice == option ? nil : option)
-                        }
-                    }
-                    .frame(minHeight: 40)
-                    .padding(.vertical, 6)
-                }
-                .padding(.horizontal)
-
-                Spacer(minLength: 40)
-            }
-            .padding(.top, 6)
-        }
-    }
-
     private var RateStep: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 12) {
-                // In RateStep
                 TitleRow(lead: "Rate this week", trail: "", accent: scranOrange)
                     .padding(.horizontal)
 
@@ -793,10 +753,7 @@ struct WeeklyRoundupFlowView: View {
         }
     }
 
-    // MARK: Daily Bites step (uses the Discover-style card)
-    // MARK: Daily Bites step → 12 big cards (no subtitle, no rounded container)
-    // MARK: Daily Bites step → 12 big cards with swipe (paged 4-per page)
-    // MARK: - Daily Bites (original swipe, now 12 cards + bigger)
+    // MARK: Daily Bites step
     private var BitesStep: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 12) {
@@ -839,23 +796,6 @@ struct WeeklyRoundupFlowView: View {
         } else {
             dismiss()
         }
-    }
-
-    private func shareText() -> String {
-        var lines: [String] = [
-            "Scranly Weekly Roundup",
-            "Dates: \(weekRangeString)",
-            "Avg cook: \(avgCookTimeMin)m  •  Total: \(totalCookTimeMin)m",
-            "Est. saved: £\(String(format: "%.2f", estSavedTotalGBP)) (≈£\(String(format: "%.2f", estSavedPerMealGBP))/meal)",
-            "Focus: \(selectedChoice ?? "Balanced")",
-            "",
-            "Ratings:"
-        ]
-        for m in weekDeck {
-            let r = ratings[m.id]?.rawValue ?? "—"
-            lines.append("• \(m.title): \(r)")
-        }
-        return lines.joined(separator: "\n")
     }
 }
 
@@ -963,7 +903,7 @@ private struct HeaderBar<Center: View, Left: View, Right: View>: View {
 
 // Progress chips (word above icon), styled like the fact-file
 private struct StepProgressBar: View {
-    let current: WeeklyRoundupFlowView.Step
+    @Binding var current: WeeklyRoundupFlowView.Step
     let accent: Color
 
     private struct Item: Identifiable {
@@ -974,11 +914,10 @@ private struct StepProgressBar: View {
     }
     private var items: [Item] {
         [
-            .init(step: .time,   title: "Time",   icon: "timer"),
-            .init(step: .money,  title: "Money",  icon: "sterlingsign.circle.fill"),
-            .init(step: .choice, title: "Choice", icon: "slider.horizontal.3"),
-            .init(step: .rate,   title: "Rate",   icon: "hand.thumbsup.fill"),
-            .init(step: .bites,  title: "Bites",  icon: "square.grid.2x2")
+            .init(step: .time,  title: "Time",  icon: "timer"),
+            .init(step: .money, title: "Money", icon: "sterlingsign.circle.fill"),
+            .init(step: .rate,  title: "Rate",  icon: "hand.thumbsup.fill"),
+            .init(step: .bites, title: "Bites", icon: "square.grid.2x2")
         ]
     }
 
@@ -1006,6 +945,11 @@ private struct StepProgressBar: View {
                         .stroke(active ? accent : .black, lineWidth: 2)
                 )
                 .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                        current = it.step
+                    }
+                }
             }
         }
     }
@@ -1013,105 +957,18 @@ private struct StepProgressBar: View {
 
 private struct TitleRow: View {
     let lead: String
-    let trail: String
-    let accent: Color
+    let trail: String   // still here so existing call sites compile
+    let accent: Color   // no longer used for the title colour
+
     var body: some View {
-        VStack(alignment: .center, spacing: 8) {
-            HStack(spacing: 8) {
+        VStack(alignment: .trailing, spacing: 0) {
+            HStack {
                 Spacer()
                 Text(lead)
-                    .font(.system(size: 26, weight: .black, design: .serif))
-                    .foregroundStyle(accent)
-                Spacer()
-            }
-            if !trail.isEmpty {
-                HStack(spacing: 8) {
-                    Spacer()
-                    HStack(spacing: 8) {
-                        Image(systemName: "calendar")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.secondary)
-                        Text(trail)
-                            .font(.caption.weight(.heavy))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 10)
-                    .background(Color(.systemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(.black, lineWidth: 2)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    Spacer()
-                }
+                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .foregroundStyle(.primary)   // black / primary, not orange
             }
         }
-    }
-}
-
-// Select chip (fact-file style)
-private struct SelectChip: View {
-    let text: String
-    let selected: Bool
-    let accent: Color
-    var onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            Text(text)
-                .font(.system(size: 14, weight: .heavy, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(0.9)
-                .padding(.vertical, 8)
-                .padding(.horizontal, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(selected ? accent.opacity(0.10) : Color(.systemBackground))
-                )
-                .foregroundStyle(selected ? accent : .primary)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(selected ? accent : .black, lineWidth: 2)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct WrapChips<Data: RandomAccessCollection, Content: View>: View where Data.Element: Hashable {
-    let data: Data
-    let spacing: CGFloat
-    @ViewBuilder var chip: (Data.Element) -> Content
-
-    var body: some View {
-        var width: CGFloat = 0
-        var height: CGFloat = 0
-
-        return GeometryReader { geo in
-            ZStack(alignment: .topLeading) {
-                ForEach(Array(data), id: \.self) { item in
-                    chip(item)
-                        .padding(.trailing, spacing)
-                        .padding(.bottom, spacing)
-                        .alignmentGuide(.leading) { d in
-                            if width + d.width > geo.size.width {
-                                width = 0
-                                height -= d.height + spacing
-                            }
-                            let result = width
-                            width += d.width + spacing
-                            return result
-                        }
-                        .alignmentGuide(.top) { _ in
-                            let result = height
-                            if item == data.last { width = 0; height = 0 }
-                            return result
-                        }
-                }
-            }
-        }
-        .frame(minHeight: 0)
     }
 }
 

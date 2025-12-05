@@ -1,3 +1,5 @@
+
+
 import SwiftUI
 
 // MARK: - App Entry
@@ -11,6 +13,7 @@ struct ScranlyApp: App {
 struct RootTabView: View {
     @State private var selected = 0
     @State private var shopBadgeCount = 12
+    @AppStorage("hasPlanThisWeek") private var hasPlanThisWeek = true
 
     init() {
         // Style the stock tab bar a bit
@@ -31,21 +34,30 @@ struct RootTabView: View {
 
     var body: some View {
         TabView(selection: $selected) {
-            // Chef / chat view
+            // Chef (home)
             ChefView()
-                .tabItem { Label("Chef", systemImage: "sparkles") }
+                .tabItem { Label("Chef", systemImage: "wand.and.stars") }
                 .tag(0)
 
-            // Weekly plan
+            // Plan
             PlanView()
                 .tabItem { Label("Plan", systemImage: "calendar") }
                 .tag(1)
 
-            // Shopping list
+            // Shop
             ShopView()
                 .tabItem { Label("Shop", systemImage: "basket.fill") }
                 .badge(shopBadgeCount > 0 ? shopBadgeCount : 0)
                 .tag(2)
+
+            // You
+            YouView()
+                .tabItem { Label("You", systemImage: "person.crop.circle") }
+                .tag(3)
+        }
+        .onAppear {
+            // default Chef if they’ve got a plan, else Plan
+            selected = hasPlanThisWeek ? 0 : 1
         }
     }
 }
@@ -118,6 +130,7 @@ private struct BrandHeaderPill: View {
 
 // MARK: - Top Logo / Settings Bar
 struct ScranlyLogoBar: View {
+    var trailing: AnyView? = nil
     var onSettings: () -> Void = {}
 
     var body: some View {
@@ -132,21 +145,26 @@ struct ScranlyLogoBar: View {
 
             HStack {
                 Spacer()
-                Button(action: onSettings) {
-                    Image(systemName: "gearshape.fill")
-                        .imageScale(.medium)
-                        .foregroundStyle(.primary)
-                        .padding(.trailing, 16)
+                if let trailing = trailing {
+                    trailing
+                } else {
+                    Button(action: onSettings) {
+                        Image(systemName: "gearshape.fill")
+                            .imageScale(.medium)
+                            .foregroundStyle(.primary)
+                            .padding(.trailing, 16)
+                    }
+                    .accessibilityLabel("Settings")
                 }
-                .accessibilityLabel("Settings")
             }
         }
         .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
     }
 }
 
-// MARK: - Home helpers still used in Chef/Home style views
+// MARK: - HOME HELPERS YOU ALREADY HAVE
 
+// MARK: - Greeting (Hello Alex! / What’s cooking!)
 struct GreetingHello: View {
     let userName: String
 
@@ -162,6 +180,7 @@ struct GreetingHello: View {
     }
 }
 
+// MARK: - Next Meal Hero (compact with image)
 struct NextMealHero: View {
     struct Model {
         let title: String
@@ -217,8 +236,7 @@ struct NextMealHero: View {
     }
 }
 
-// MARK: - KPI Grid / Highlights reused where needed
-
+// MARK: - KPI Grid
 struct KPIGrid: View {
     let kpis: [KPI]
     private let cols = [
@@ -258,6 +276,7 @@ fileprivate struct StatTile: View {
     }
 }
 
+// MARK: - Basket Summary Chip (single compact card)
 struct BasketSummaryChip: View {
     var title: String
     var itemsCount: Int
@@ -304,6 +323,8 @@ struct BasketSummaryChip: View {
     }
 }
 
+// MARK: - Detailed Stats Highlights
+
 struct StatsHighlight: Identifiable {
     let id = UUID()
     let icon: String
@@ -320,6 +341,7 @@ struct StatsHighlightsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // Header
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
@@ -337,6 +359,7 @@ struct StatsHighlightsSection: View {
                 Spacer()
             }
 
+            // Stacked chips
             VStack(spacing: 10) {
                 ForEach(highlights) { h in
                     VStack(alignment: .leading, spacing: 8) {
@@ -386,12 +409,271 @@ struct StatsHighlightsSection: View {
     }
 }
 
+// MARK: - Simple models used here
 struct KPI: Identifiable {
     let id = UUID()
     let icon: String
     let value: String
     let label: String
     let tint: Color
+}
+
+// MARK: - YOU VIEW
+
+struct YouView: View {
+    @State private var name: String = "Alex"
+    @State private var isVeggie: Bool = false
+    @State private var isGlutenFree: Bool = false
+    @State private var budgetPerWeek: Double = 45
+    @State private var timePerMeal: Double = 30
+    @State private var notificationsOn: Bool = true
+    @State private var smartSuggestionsOn: Bool = true
+    @State private var showSettingsSheet = false
+
+    private var kpis: [KPI] {
+        [
+            KPI(icon: "flame.fill",   value: "6k",   label: "Calories cooked", tint: .orange),
+            KPI(icon: "leaf.fill",    value: "12",   label: "Veg-forward meals", tint: .green),
+            KPI(icon: "clock.fill",   value: "2.5h", label: "Time saved", tint: .blue),
+            KPI(icon: "cart.badge.plus", value: "3", label: "Shops automated", tint: .purple)
+        ]
+    }
+
+    private var highlights: [StatsHighlight] {
+        [
+            StatsHighlight(
+                icon: "chart.line.uptrend.xyaxis",
+                title: "Consistency streak",
+                detail: "You’ve cooked at home 4 nights in a row. Scranly loves the run you’re on.",
+                badge: "On a roll",
+                badgeTint: .green
+            ),
+            StatsHighlight(
+                icon: "fork.knife",
+                title: "Go-to cuisines",
+                detail: "Italian, Japanese and Mexican are showing up the most in your recent dinners.",
+                badge: "Taste map",
+                badgeTint: .orange
+            ),
+            StatsHighlight(
+                icon: "bolt.heart",
+                title: "Your sweet spot",
+                detail: "You tend to cook 25–35 minute dinners around 600–700 kcal.",
+                badge: "Dialed in",
+                badgeTint: .blue
+            )
+        ]
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .top) {
+                Color(.systemBackground).ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    ScranlyLogoBar(
+                        trailing: AnyView(
+                            Button {
+                                showSettingsSheet = true
+                            } label: {
+                                Image(systemName: "slider.horizontal.3")
+                                    .imageScale(.medium)
+                                    .foregroundStyle(.primary)
+                                    .padding(.trailing, 16)
+                            }
+                        )
+                    )
+
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 18) {
+
+                            // Profile / intro
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.scranOrange.opacity(0.12))
+                                            .frame(width: 48, height: 48)
+                                        Text(String(name.prefix(1)))
+                                            .font(.system(size: 24, weight: .black, design: .rounded))
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("You")
+                                            .font(.caption.weight(.heavy))
+                                            .foregroundStyle(.secondary)
+                                        Text(name)
+                                            .font(.system(size: 22, weight: .black, design: .rounded))
+                                        Text("Tuning Scranly to your life")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+                                }
+                            }
+                            .padding(.horizontal)
+
+                            // KPIs
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Your cooking stats")
+                                    .font(.headline)
+                                KPIGrid(kpis: kpis)
+                            }
+                            .padding(.horizontal)
+
+                            // Highlights
+                            StatsHighlightsSection(
+                                title: "What Scranly’s noticed",
+                                subtitle: "We’ll keep adjusting plans and shops to match your patterns.",
+                                highlights: highlights
+                            )
+                            .padding(.horizontal)
+
+                            // Preferences card
+                            YouPreferencesCard(
+                                name: $name,
+                                isVeggie: $isVeggie,
+                                isGlutenFree: $isGlutenFree,
+                                budgetPerWeek: $budgetPerWeek,
+                                timePerMeal: $timePerMeal
+                            )
+                            .padding(.horizontal)
+
+                            // Settings card
+                            YouSettingsCard(
+                                notificationsOn: $notificationsOn,
+                                smartSuggestionsOn: $smartSuggestionsOn
+                            )
+                            .padding(.horizontal)
+
+                            Spacer(minLength: 24)
+                        }
+                        .padding(.top, 12)
+                        .padding(.bottom, 20)
+                    }
+                }
+            }
+            .sheet(isPresented: $showSettingsSheet) {
+                NavigationStack {
+                    Form {
+                        Section("Notifications") {
+                            Toggle("Cooking reminders", isOn: $notificationsOn)
+                            Toggle("Smart suggestions", isOn: $smartSuggestionsOn)
+                        }
+
+                        Section("Preferences") {
+                            Toggle("Prefer veggie dishes", isOn: $isVeggie)
+                            Toggle("Gluten-free friendly", isOn: $isGlutenFree)
+                        }
+
+                        Section("Planning") {
+                            Stepper("Budget ~£\(Int(budgetPerWeek))/week", value: $budgetPerWeek, in: 10...200, step: 5)
+                            Stepper("Time per meal ~\(Int(timePerMeal)) mins", value: $timePerMeal, in: 10...90, step: 5)
+                        }
+                    }
+                    .navigationTitle("You settings")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { showSettingsSheet = false }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - You preferences card
+
+fileprivate struct YouPreferencesCard: View {
+    @Binding var name: String
+    @Binding var isVeggie: Bool
+    @Binding var isGlutenFree: Bool
+    @Binding var budgetPerWeek: Double
+    @Binding var timePerMeal: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "slider.horizontal.3")
+                    .foregroundStyle(.scranOrange)
+                Text("Your preferences")
+                    .font(.headline)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                TextField("Your name", text: $name)
+                    .textFieldStyle(.roundedBorder)
+
+                Toggle("Prefer veggie dishes", isOn: $isVeggie)
+                Toggle("Gluten-free friendly", isOn: $isGlutenFree)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Weekly food budget")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Text("~£\(Int(budgetPerWeek))")
+                            .font(.caption.weight(.heavy))
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $budgetPerWeek, in: 10...200, step: 5)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Time per dinner")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Text("~\(Int(timePerMeal)) mins")
+                            .font(.caption.weight(.heavy))
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $timePerMeal, in: 10...90, step: 5)
+                }
+
+                Text("Scranly will use this to tune recipes, plans and your shopping lists.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(14)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
+    }
+}
+
+// MARK: - You settings card
+
+fileprivate struct YouSettingsCard: View {
+    @Binding var notificationsOn: Bool
+    @Binding var smartSuggestionsOn: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "gearshape.fill")
+                    .foregroundStyle(.scranOrange)
+                Text("App settings")
+                    .font(.headline)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("Cooking reminders", isOn: $notificationsOn)
+                Toggle("Smart suggestions", isOn: $smartSuggestionsOn)
+
+                Text("Fine-tune how proactive Scranly should be. You’re always in control.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(14)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
+    }
 }
 
 // MARK: - Preview

@@ -28,7 +28,8 @@ fileprivate struct ChefBubble: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.black.opacity(message.isUser ? 0.0 : 0.08), lineWidth: message.isUser ? 0 : 1)
+                        .stroke(Color.black.opacity(message.isUser ? 0.0 : 0.08),
+                                lineWidth: message.isUser ? 0 : 1)
                 )
 
             if !message.isUser { Spacer(minLength: 40) }
@@ -36,127 +37,243 @@ fileprivate struct ChefBubble: View {
     }
 }
 
-// MARK: - Chef root view (Ask Scranly)
+// MARK: - Big Ask Scranly hero card (under “Hello Alex”)
 
-struct ChefView: View {
-    @State private var messages: [ChefChatMessage] = [
-        .init(text: "Hey, I’m Scranly. Ask me anything about dinner this week.", isUser: false)
-    ]
-    @State private var inputText: String = ""
-
-    private let quickPrompts: [String] = [
-        "Plan my week of dinners",
-        "Use up chicken, spinach, rice",
-        "Make tonight lighter",
-        "Cook in under 20 minutes",
-        "Plan & shop for 2 people"
-    ]
-
-    private let sampleKPI: [KPI] = [
-        .init(icon: "flame.fill", value: "3,420", label: "kcal planned", tint: .orange),
-        .init(icon: "leaf.fill",  value: "5",     label: "veg-heavy meals", tint: .green),
-        .init(icon: "clock.fill", value: "26m",   label: "avg. cook time", tint: .blue),
-        .init(icon: "basket.fill",value: "16",    label: "items in basket", tint: .purple)
-    ]
+fileprivate struct AskScranlyHeroCard: View {
+    var isExpanded: Bool
+    var onTap: () -> Void
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Brand bar
-                ScranlyLogoBar()
-
-                ScrollViewReader { proxy in
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 18) {
-
-                            // Greeting + hero
-                            VStack(spacing: 16) {
-                                GreetingHello(userName: "Alex")
-
-                                NextMealHero(
-                                    model: .init(
-                                        title: "Katsu Curry",
-                                        meta: "Tonight · 25 min · 680 kcal",
-                                        emoji: "🍛"
-                                    ),
-                                    onCook: {
-                                        sendFromPrompt("Walk me through cooking my Katsu step by step")
-                                    },
-                                    onSwap: {
-                                        sendFromPrompt("Swap tonight’s Katsu for something lighter")
-                                    }
-                                )
-                            }
-                            .padding(.horizontal)
-
-                            // Basket chip (stubbed)
-                            BasketSummaryChip(
-                                title: "This week’s shop",
-                                itemsCount: 16,
-                                totalGBP: 42.75,
-                                onTap: {
-                                    // you can route to Shop tab programmatically later
-                                }
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.scranOrange.opacity(0.18),
+                                    Color.scranOrange.opacity(0.05)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
                             )
-                            .padding(.horizontal)
+                        )
+                        .frame(width: 70, height: 70)
 
-                            // KPIs
-                            KPIGrid(kpis: sampleKPI)
-                                .padding(.horizontal)
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundStyle(.scranOrange)
+                }
 
-                            // Quick prompts row
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "sparkles")
-                                        .foregroundStyle(.scranOrange)
-                                    Text("Ask Scranly")
-                                        .font(.system(size: 16, weight: .heavy, design: .rounded))
-                                }
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        Text("Ask Scranly")
+                            .font(.system(size: 18, weight: .black, design: .rounded))
+                        Image(systemName: "sparkles")
+                            .font(.caption2.weight(.bold))
+                    }
 
-                                Text("Tap a prompt or type your own question.")
+                    Text("Tell me what kind of week you want — I’ll plan, tweak, and shop with you.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "wand.and.stars")
+                            .font(.caption.weight(.bold))
+                        Text(isExpanded ? "Hide chef chat" : "Open chef chat")
+                            .font(.caption.weight(.heavy))
+                    }
+                    .foregroundStyle(.scranOrange)
+                }
+
+                Spacer()
+
+                Image(systemName: isExpanded ? "chevron.down.circle.fill" : "chevron.up.circle.fill")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.scranOrange)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color(.systemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Context “one card at a time” pager at the bottom
+
+fileprivate struct ChefContextHighlight: Identifiable {
+    let id = UUID()
+    let icon: String
+    let title: String
+    let detail: String
+    let tint: Color
+}
+
+fileprivate let chefContextHighlights: [ChefContextHighlight] = [
+    .init(
+        icon: "clock.badge.checkmark",
+        title: "Your week skews quick",
+        detail: "Most dinners are in the 20–30 minute range. Perfect for after-work energy.",
+        tint: .scranOrange
+    ),
+    .init(
+        icon: "leaf.fill",
+        title: "Veg is looking strong",
+        detail: "You’ve got plenty of veg-heavy dishes. I can keep that going if you like.",
+        tint: .green
+    ),
+    .init(
+        icon: "basket.fill",
+        title: "Compact shopping list",
+        detail: "Your current plan fits into a single basket shop — no sprawling supermarket run.",
+        tint: .purple
+    )
+]
+
+fileprivate struct ChefContextPager: View {
+    let highlights: [ChefContextHighlight]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.scranOrange)
+                Text("This week, Scranly notices…")
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+            }
+            .padding(.horizontal)
+
+            TabView {
+                ForEach(highlights) { h in
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 10) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(h.tint.opacity(0.12))
+                                    .frame(width: 42, height: 42)
+                                Image(systemName: h.icon)
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundStyle(h.tint)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(h.title)
+                                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                Text(h.detail)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 8) {
-                                        ForEach(quickPrompts, id: \.self) { prompt in
-                                            Button {
-                                                sendFromPrompt(prompt)
-                                            } label: {
-                                                Text(prompt)
-                                                    .font(.caption.weight(.heavy))
-                                                    .padding(.vertical, 6)
-                                                    .padding(.horizontal, 10)
-                                                    .background(Color(.systemBackground))
-                                                    .overlay(
-                                                        Capsule()
-                                                            .stroke(Color.black.opacity(0.18), lineWidth: 1)
-                                                    )
-                                                    .clipShape(Capsule())
-                                            }
-                                            .buttonStyle(.plain)
-                                        }
-                                    }
-                                }
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            .padding(.horizontal)
-
-                            // Chat transcript
-                            VStack(alignment: .leading, spacing: 10) {
-                                ForEach(messages) { msg in
-                                    ChefBubble(message: msg)
-                                        .id(msg.id)
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.bottom, 80) // space for input bar
                         }
-                        .padding(.top, 8)
-                        .onChange(of: messages.count) { _ in
-                            if let lastId = messages.last?.id {
-                                withAnimation {
-                                    proxy.scrollTo(lastId, anchor: .bottom)
-                                }
+                    }
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color(.systemBackground))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.black.opacity(0.08), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.04), radius: 5, y: 3)
+                    .padding(.horizontal)
+                }
+            }
+            .frame(height: 140)
+            .tabViewStyle(.page(indexDisplayMode: .automatic))
+        }
+        .padding(.bottom, 24)
+    }
+}
+
+// MARK: - Collapsible Ask Scranly panel (bottom sheet)
+
+fileprivate struct ChefChatPanel: View {
+    @Binding var messages: [ChefChatMessage]
+    @Binding var inputText: String
+    let quickPrompts: [String]
+    var onSend: () -> Void
+    var onSendPrompt: (String) -> Void
+    var onClose: () -> Void
+
+    var body: some View {
+        GeometryReader { geo in
+            VStack(spacing: 8) {
+                // Handle
+                Capsule()
+                    .fill(Color.black.opacity(0.15))
+                    .frame(width: 36, height: 4)
+                    .padding(.top, 6)
+
+                // Header row
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.scranOrange)
+                    Text("Ask Scranly")
+                        .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    Spacer()
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.black))
+                            .padding(6)
+                            .background(Color(.systemBackground))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 12)
+
+                // Quick prompts
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(quickPrompts, id: \.self) { prompt in
+                            Button {
+                                onSendPrompt(prompt)
+                            } label: {
+                                Text(prompt)
+                                    .font(.caption.weight(.heavy))
+                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 10)
+                                    .background(Color(.systemBackground))
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Color.black.opacity(0.18), lineWidth: 1)
+                                    )
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                }
+
+                // Chat transcript
+                ScrollViewReader { proxy in
+                    ScrollView(showsIndicators: true) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(messages) { msg in
+                                ChefBubble(message: msg)
+                                    .id(msg.id)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.top, 6)
+                    }
+                    .onChange(of: messages.count) { _ in
+                        if let lastId = messages.last?.id {
+                            withAnimation {
+                                proxy.scrollTo(lastId, anchor: .bottom)
                             }
                         }
                     }
@@ -172,20 +289,133 @@ struct ChefView: View {
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(1...3)
 
-                    Button {
-                        sendMessage()
-                    } label: {
+                    Button(action: onSend) {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray.opacity(0.4) : .scranOrange)
+                            .foregroundStyle(
+                                inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? .gray.opacity(0.4)
+                                : .scranOrange
+                            )
                     }
                     .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
+                .padding(.bottom, geo.safeAreaInsets.bottom > 0 ? geo.safeAreaInsets.bottom : 8)
+                .padding(.top, 4)
             }
-            .ignoresSafeArea(edges: .top)
+            .frame(maxWidth: .infinity,
+                   maxHeight: geo.size.height * 0.72,
+                   alignment: .bottom)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .shadow(color: .black.opacity(0.25), radius: 16, y: -2)
+            .frame(maxHeight: .infinity, alignment: .bottom)
+        }
+    }
+}
+
+// MARK: - Chef root view (Ask Scranly home)
+
+struct ChefView: View {
+    @State private var messages: [ChefChatMessage] = [
+        .init(text: "Hey, I’m Scranly. Ask me anything about dinner this week.", isUser: false)
+    ]
+    @State private var inputText: String = ""
+    @State private var isChatExpanded: Bool = false
+
+    private let quickPrompts: [String] = [
+        "Plan my week of dinners",
+        "Use up chicken, spinach, rice",
+        "Make tonight lighter",
+        "Cook in under 20 minutes",
+        "Plan & shop for 2 people"
+    ]
+
+    // Slim KPIs for context (kept light)
+    private let sampleKPI: [KPI] = [
+        .init(icon: "flame.fill", value: "3,420", label: "kcal planned", tint: .orange),
+        .init(icon: "clock.fill", value: "26m",   label: "avg cook time", tint: .blue)
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .top) {
+                Color(.systemBackground).ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    // Header below the notch
+                    ScranlyLogoBar()
+
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 18) {
+
+                            // Greeting + big Ask Scranly hero
+                            VStack(spacing: 12) {
+                                GreetingHello(userName: "Alex")
+
+                                AskScranlyHeroCard(
+                                    isExpanded: isChatExpanded,
+                                    onTap: {
+                                        withAnimation(.spring(response: 0.35,
+                                                              dampingFraction: 0.88)) {
+                                            isChatExpanded.toggle()
+                                        }
+                                    }
+                                )
+                            }
+                            .padding(.horizontal)
+                            .padding(.top, 12)
+
+                            // “This week” context (basket + tiny KPIs)
+                            VStack(alignment: .leading, spacing: 12) {
+                                BasketSummaryChip(
+                                    title: "This week’s shop",
+                                    itemsCount: 16,
+                                    totalGBP: 42.75,
+                                    onTap: {
+                                        // wire to Shop tab later
+                                    }
+                                )
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("This week at a glance")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+
+                                    KPIGrid(kpis: sampleKPI)
+                                }
+                            }
+                            .padding(.horizontal)
+
+                            // Bottom context window: one visual nugget at a time
+                            ChefContextPager(highlights: chefContextHighlights)
+
+                            Spacer(minLength: 40)
+                        }
+                        .padding(.bottom, 100) // space for chat sheet handle
+                    }
+                }
+
+                // Bottom collapsible chat sheet
+                if isChatExpanded {
+                    ChefChatPanel(
+                        messages: $messages,
+                        inputText: $inputText,
+                        quickPrompts: quickPrompts,
+                        onSend: { sendMessage() },
+                        onSendPrompt: { prompt in
+                            sendFromPrompt(prompt)
+                        },
+                        onClose: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                isChatExpanded = false
+                            }
+                        }
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
         }
     }
 
